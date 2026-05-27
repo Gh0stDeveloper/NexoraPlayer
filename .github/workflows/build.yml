@@ -3,7 +3,7 @@ name: Build & Release APK
 on:
   push:
     branches: [ main, master ]
-    tags:     [ 'v*.*.*' ]
+    tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -32,13 +32,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            \~/.gradle/caches
+            \~/.gradle/wrapper
+          key: \( {{ runner.os }}-gradle- \){{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: 🏗️ Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: 📤 Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -47,8 +47,8 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
-      # ── Release build (only on tags or main) ──────────
-      - name: 🔐 Decode Keystore
+      # Build Release (solo en main o tags)
+      - name: 🔐 Decode Keystore (solo release)
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -58,25 +58,7 @@ jobs:
       - name: 🏗️ Build Release APK
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         env:
-          KEYSTORE_FILE: ${{ github.workspace }}/nexora-release.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --stacktrace
-
-      - name: 📤 Upload Release APK
-        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nexora-player-release-${{ github.run_number }}
-          path: app/build/outputs/apk/release/*.apk
-          retention-days: 30
-
-      # ── Create GitHub Release on tag push ─────────────
-      - name: 🚀 Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app/build/outputs/apk/release/*.apk
-          generate_release_notes: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace
