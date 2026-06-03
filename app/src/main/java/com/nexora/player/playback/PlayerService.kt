@@ -10,14 +10,17 @@ import android.graphics.drawable.BitmapDrawable
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.lifecycle.lifecycleScope
+import androidx.media.app.NotificationCompat as MediaNotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.nexora.player.MainActivity
 import com.nexora.player.R
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class PlayerService : MediaSessionService() {
@@ -33,14 +36,14 @@ class PlayerService : MediaSessionService() {
     }
 
     private var mediaSession: MediaSession? = null
-    private var notificationJob: Job? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
         val player = PlayerEngine.get(this)
         mediaSession = MediaSession.Builder(this, player).build()
-        notificationJob = lifecycleScope.launch {
+        serviceScope.launch {
             PlayerEngine.snapshot.collectLatest { snapshot ->
                 updateNotification(snapshot)
             }
@@ -65,7 +68,7 @@ class PlayerService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        notificationJob?.cancel()
+        serviceScope.cancel()
         mediaSession?.run {
             player.release()
             release()
@@ -93,7 +96,7 @@ class PlayerService : MediaSessionService() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
             .setStyle(
-                NotificationCompat.MediaStyle()
+                MediaNotificationCompat.MediaStyle()
                     .setShowActionsInCompactView(0, 1, 2)
             )
             .addAction(android.R.drawable.ic_media_previous, getString(R.string.action_previous), serviceAction(ACTION_PREVIOUS))
@@ -111,7 +114,7 @@ class PlayerService : MediaSessionService() {
 
         if (snapshot.isPlaying) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+                startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
