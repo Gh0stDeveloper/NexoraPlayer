@@ -44,7 +44,7 @@ fun SearchResultsScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Resultados de búsqueda", style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        if (total == 0) "No hay coincidencias para "$query"" else "$total coincidencias encontradas",
+                        if (total == 0) "No hay coincidencias para \"$query\"" else "$total coincidencias encontradas",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
