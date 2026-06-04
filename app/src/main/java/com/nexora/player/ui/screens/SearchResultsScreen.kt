@@ -36,24 +36,40 @@ fun SearchResultsScreen(
     favoriteIds: Set<Long>
 ) {
     val total = audio.size + videos.size
+    val summaryText = if (total == 0) {
+        "No hay coincidencias para \"$query\""
+    } else {
+        "$total coincidencias encontradas"
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            PremiumHeroCard(
-                title = "Resultados de búsqueda",
-                subtitle = if (total == 0) "No hay coincidencias para "$query"" else "$total coincidencias encontradas",
-            ) {
-                StatPill("$total total")
+            ElevatedCard {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Resultados de búsqueda", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        text = summaryText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
         if (audio.isNotEmpty()) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    AssistChip(onClick = {}, label = { Text("Audio (${audio.size})") })
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    AssistChip(onClick = {}, label = { Text("Audio / Audios (${audio.size})") })
                 }
             }
             items(audio, key = { it.id }) { item ->
@@ -67,12 +83,18 @@ fun SearchResultsScreen(
         }
 
         if (audio.isNotEmpty() && videos.isNotEmpty()) {
-            item { Spacer(Modifier.height(4.dp)); Divider() }
+            item {
+                Spacer(Modifier.height(4.dp))
+                Divider()
+            }
         }
 
         if (videos.isNotEmpty()) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     AssistChip(onClick = {}, label = { Text("Videos (${videos.size})") })
                 }
             }
