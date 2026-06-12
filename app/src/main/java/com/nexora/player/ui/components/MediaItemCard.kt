@@ -2,7 +2,6 @@ package com.nexora.player.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,11 +19,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexora.player.R
+import com.nexora.player.data.model.MediaEntry
 
 @Composable
 fun MediaItemRow(
-    item: com.nexora.player.data.model.MediaEntry,
+    item: MediaEntry,
     isFavorite: Boolean = false,
     onClick: () -> Unit,
     onFavoriteClick: (() -> Unit)? = null,
@@ -46,7 +48,7 @@ fun MediaItemRow(
                 modifier = Modifier.size(58.dp)
             )
 
-            Column(modifier = Modifier.weight(1f)) {
+            androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 val subtitle = buildString {
                     if (item.artist.isNotBlank()) append(item.artist)
@@ -79,14 +81,18 @@ fun MediaItemRow(
                 IconButton(onClick = onFavoriteClick) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = if (isFavorite) "Quitar de favoritos" else "Agregar a favoritos"
+                        contentDescription = if (isFavorite) {
+                            stringResource(R.string.media_favorite_remove)
+                        } else {
+                            stringResource(R.string.media_favorite_add)
+                        }
                     )
                 }
             }
 
             if (onMoreClick != null) {
                 IconButton(onClick = onMoreClick) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Más acciones")
+                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.media_more_actions))
                 }
             }
         }

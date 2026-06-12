@@ -4,10 +4,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,15 +17,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -39,11 +38,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.os.LocaleListCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nexora.player.data.model.AppDestination
+import com.nexora.player.data.model.AppLanguage
 import com.nexora.player.data.model.AppThemeMode
 import com.nexora.player.data.model.MediaKind
 import com.nexora.player.ui.components.BottomPlayerBar
@@ -62,7 +64,7 @@ import com.nexora.player.ui.theme.NexoraTheme
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     private val viewModel: AppViewModel by viewModels()
 
@@ -149,8 +151,8 @@ class MainActivity : ComponentActivity() {
                                             searchExpanded = false
                                             viewModel.setDestination(destination)
                                         },
-                                        icon = { Icon(iconFor(destination), contentDescription = destination.label) },
-                                        label = { Text(destination.label) }
+                                        icon = { Icon(iconFor(destination), contentDescription = stringResource(destination.labelRes)) },
+                                        label = { Text(stringResource(destination.labelRes)) }
                                     )
                                 }
                             }
@@ -167,9 +169,9 @@ class MainActivity : ComponentActivity() {
                 if (showNowPlaying) {
                     val current = state.currentItem
                     if (current?.kind == MediaKind.VIDEO) {
-                        Dialog(
+                        androidx.compose.ui.window.Dialog(
                             onDismissRequest = { showNowPlaying = false },
-                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 NowPlayingScreen(modifier = Modifier.fillMaxSize())
@@ -289,8 +291,10 @@ private fun AppContent(
             themeMode = state.preferences.themeMode,
             dynamicColor = state.preferences.dynamicColor,
             hiddenAudioCount = state.hiddenAudioIds.size,
+            currentLanguage = rememberAppLanguage(),
             onThemeChange = viewModel::setThemeMode,
             onDynamicColorChange = viewModel::setDynamicColor,
+            onLanguageChange = ::applyLanguage,
             onRestoreHiddenAudio = viewModel::restoreHiddenAudio
         )
     }
@@ -300,10 +304,24 @@ private fun AppContent(
 private fun rememberGreeting(): String {
     val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     return when (hour) {
-        in 5..11 -> "Buenos días"
-        in 12..18 -> "Buenas tardes"
-        else -> "Buenas noches"
+        in 5..11 -> stringResource(com.nexora.player.R.string.greeting_morning)
+        in 12..18 -> stringResource(com.nexora.player.R.string.greeting_afternoon)
+        else -> stringResource(com.nexora.player.R.string.greeting_evening)
     }
+}
+
+@Composable
+private fun rememberAppLanguage(): AppLanguage {
+    val tags = AppCompatDelegate.getApplicationLocales().toLanguageTags()
+    return AppLanguage.fromTag(tags)
+}
+
+private fun applyLanguage(language: AppLanguage) {
+    val locales = when (val tag = language.tag) {
+        null -> LocaleListCompat.getEmptyLocaleList()
+        else -> LocaleListCompat.forLanguageTags(tag)
+    }
+    AppCompatDelegate.setApplicationLocales(locales)
 }
 
 private fun iconFor(destination: AppDestination) = when (destination) {

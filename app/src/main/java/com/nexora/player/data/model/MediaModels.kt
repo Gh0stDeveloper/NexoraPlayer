@@ -1,25 +1,27 @@
 package com.nexora.player.data.model
 
 import android.net.Uri
+import androidx.annotation.StringRes
+import com.nexora.player.R
 
 enum class MediaKind {
     AUDIO,
     VIDEO
 }
 
-enum class SortMode {
-    DATE_ADDED_DESC,
-    DATE_ADDED_ASC,
-    TITLE_ASC,
-    TITLE_DESC,
-    DURATION_ASC,
-    DURATION_DESC,
-    ARTIST_ASC,
-    ALBUM_ASC,
-    SIZE_ASC,
-    SIZE_DESC,
-    RESOLUTION_ASC,
-    RESOLUTION_DESC
+enum class SortMode(@StringRes val labelRes: Int) {
+    DATE_ADDED_DESC(R.string.sort_date_added_desc),
+    DATE_ADDED_ASC(R.string.sort_date_added_asc),
+    TITLE_ASC(R.string.sort_title_asc),
+    TITLE_DESC(R.string.sort_title_desc),
+    DURATION_ASC(R.string.sort_duration_asc),
+    DURATION_DESC(R.string.sort_duration_desc),
+    ARTIST_ASC(R.string.sort_artist_asc),
+    ALBUM_ASC(R.string.sort_album_asc),
+    SIZE_ASC(R.string.sort_size_asc),
+    SIZE_DESC(R.string.sort_size_desc),
+    RESOLUTION_ASC(R.string.sort_resolution_asc),
+    RESOLUTION_DESC(R.string.sort_resolution_desc)
 }
 
 enum class AppThemeMode {
@@ -28,14 +30,29 @@ enum class AppThemeMode {
     DARK
 }
 
-enum class AppDestination(val label: String) {
-    MUSIC("Música"),
-    VIDEOS("Videos"),
-    QUEUE("Cola"),
-    PLAYLISTS("Listas"),
-    FAVORITES("Favoritos"),
-    HISTORY("Historial"),
-    SETTINGS("Ajustes")
+enum class AppLanguage(@StringRes val labelRes: Int, val tag: String?) {
+    SYSTEM(R.string.language_system, null),
+    SPANISH(R.string.language_spanish, "es"),
+    ENGLISH(R.string.language_english, "en");
+
+    companion object {
+        fun fromTag(tag: String?): AppLanguage = when (tag?.lowercase()) {
+            null, "" -> SYSTEM
+            "es" -> SPANISH
+            "en" -> ENGLISH
+            else -> SYSTEM
+        }
+    }
+}
+
+enum class AppDestination(@StringRes val labelRes: Int) {
+    MUSIC(R.string.nav_music),
+    VIDEOS(R.string.nav_videos),
+    QUEUE(R.string.nav_queue),
+    PLAYLISTS(R.string.nav_playlists),
+    FAVORITES(R.string.nav_favorites),
+    HISTORY(R.string.nav_history),
+    SETTINGS(R.string.nav_settings)
 }
 
 data class MediaEntry(

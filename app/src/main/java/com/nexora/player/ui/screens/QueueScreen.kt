@@ -1,4 +1,3 @@
-
 package com.nexora.player.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +19,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexora.player.R
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.ui.components.MediaItemRow
 
@@ -38,14 +39,14 @@ fun QueueScreen(
             modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Cola de reproducción", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.queue_title), style = MaterialTheme.typography.headlineSmall)
             Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = onClearQueue, enabled = queue.isNotEmpty()) { Text("Vaciar") }
+            TextButton(onClick = onClearQueue, enabled = queue.isNotEmpty()) { Text(stringResource(R.string.clear_queue)) }
         }
 
         if (queue.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-                Text("No hay elementos en la cola todavía.", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.queue_empty), style = MaterialTheme.typography.bodyLarge)
             }
             return
         }
@@ -58,15 +59,15 @@ fun QueueScreen(
                 ElevatedCard {
                     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
                         if (index == currentIndex) {
-                            AssistChip(onClick = { onPlayItem(index) }, label = { Text("Reproduciendo") })
+                            AssistChip(onClick = { onPlayItem(index) }, label = { Text(stringResource(R.string.queue_playing)) })
                         }
                         MediaItemRow(
                             item = item,
                             onClick = { onPlayItem(index) }
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { onPlayItem(index) }) { Text("Ir a") }
-                            TextButton(onClick = { onRemoveItem(index) }) { Text("Quitar") }
+                            TextButton(onClick = { onPlayItem(index) }) { Text(stringResource(R.string.queue_go_to)) }
+                            TextButton(onClick = { onRemoveItem(index) }) { Text(stringResource(R.string.queue_remove)) }
                         }
                     }
                 }

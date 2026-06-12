@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.getSystemService
@@ -43,10 +44,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.ui.PlayerView
+import com.nexora.player.R
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.playback.PlayerEngine
 import com.nexora.player.ui.components.GestureControlOverlay
-import com.nexora.player.ui.components.MediaArtwork
 import com.nexora.player.ui.components.PlayerControlsRow
 import com.nexora.player.ui.components.PlayerMetadata
 import com.nexora.player.ui.components.PlaybackSeekBar
@@ -109,7 +110,7 @@ fun VideoPlayerScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (current == null) {
-            Text("No hay video en reproducción", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.video_no_playback), style = MaterialTheme.typography.headlineSmall)
             return@Column
         }
 
@@ -185,7 +186,7 @@ fun VideoPlayerScreen(
             ) {
                 PlayerMetadata(
                     title = current.title,
-                    subtitle = current.folder?.takeIf { it.isNotBlank() } ?: "Video local",
+                    subtitle = current.folder?.takeIf { it.isNotBlank() } ?: stringResource(R.string.video_local_label),
                     trailingLabel = formatDuration(current.durationMs)
                 )
 
@@ -209,8 +210,8 @@ fun VideoPlayerScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Gestos rápidos", style = MaterialTheme.typography.titleMedium)
-                Text("Desliza a la izquierda para brillo y a la derecha para volumen. El visor se mantiene realmente a pantalla completa.")
+                Text(stringResource(R.string.video_gestures_title), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.video_gestures_desc))
             }
         }
     }

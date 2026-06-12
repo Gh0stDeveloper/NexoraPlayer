@@ -1,4 +1,3 @@
-
 package com.nexora.player.ui.components
 
 import androidx.compose.foundation.clickable
@@ -22,7 +21,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexora.player.R
 import com.nexora.player.data.model.MediaEntry
 
 @Composable
@@ -66,16 +67,16 @@ fun BottomPlayerBar(
                 }
 
                 IconButton(onClick = onPrevious) {
-                    Icon(Icons.Filled.FastRewind, contentDescription = "Anterior")
+                    Icon(Icons.Filled.FastRewind, contentDescription = stringResource(R.string.player_previous))
                 }
                 IconButton(onClick = onTogglePlay) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = null
+                        contentDescription = if (isPlaying) stringResource(R.string.player_pause) else stringResource(R.string.player_play)
                     )
                 }
                 IconButton(onClick = onNext) {
-                    Icon(Icons.Filled.FastForward, contentDescription = "Siguiente")
+                    Icon(Icons.Filled.FastForward, contentDescription = stringResource(R.string.player_next))
                 }
             }
 

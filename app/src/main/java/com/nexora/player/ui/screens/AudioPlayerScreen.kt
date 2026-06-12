@@ -20,7 +20,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexora.player.R
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.playback.PlayerEngine
 import com.nexora.player.ui.components.MediaArtwork
@@ -57,7 +59,7 @@ fun AudioPlayerScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (current == null) {
-            Text("No hay contenido en reproducción", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.audio_no_playback), style = MaterialTheme.typography.headlineSmall)
             return@Column
         }
 
@@ -106,7 +108,12 @@ fun AudioPlayerScreen(
 
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Reproduciendo ahora", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.audio_now_playing), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.audio_now_playing_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 

@@ -18,10 +18,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,7 +26,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexora.player.R
 import com.nexora.player.data.local.PlaylistEntity
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.SortMode
@@ -61,11 +59,17 @@ fun MusicScreen(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                Text(stringResource(R.string.music_library_title), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    stringResource(R.string.music_library_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = false,
                         onClick = onRefresh,
-                        label = { Text("Actualizar") }
+                        label = { Text(stringResource(R.string.refresh)) }
                     )
                     SortSelector(
                         selected = sortMode,
@@ -90,10 +94,10 @@ fun MusicScreen(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("No hay música visible en esta sección.", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.no_visible_music), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Si ocultaste canciones, puedes restaurarlas desde Ajustes.",
+                    stringResource(R.string.hidden_tracks_restore_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -126,19 +130,19 @@ fun MusicScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Elige una acción para este elemento.",
+                        stringResource(R.string.choose_action_for_item),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     if (playlists.isEmpty()) {
                         Text(
-                            "No hay listas de reproducción creadas todavía.",
+                            stringResource(R.string.no_playlists_yet),
                             style = MaterialTheme.typography.bodySmall
                         )
                     } else {
                         Text(
-                            "Añadir a lista de reproducción",
+                            stringResource(R.string.add_to_playlist),
                             style = MaterialTheme.typography.labelLarge
                         )
                         playlists.forEach { playlist ->
@@ -156,13 +160,13 @@ fun MusicScreen(
                         onHideFromLibrary(item)
                         selectedItem = null
                     }) {
-                        Text("Ocultar de la biblioteca")
+                        Text(stringResource(R.string.hide_from_library))
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { selectedItem = null }) {
-                    Text("Cerrar")
+                    Text(stringResource(R.string.close))
                 }
             }
         )

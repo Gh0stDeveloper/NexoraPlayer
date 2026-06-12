@@ -17,7 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexora.player.R
 
 @Composable
 fun SearchField(
@@ -42,15 +44,15 @@ fun SearchField(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (query.isNotBlank()) {
                             IconButton(onClick = { onQueryChange("") }) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Limpiar búsqueda")
+                                Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.search_clear))
                             }
                         }
                         IconButton(onClick = { onExpandedChange(false) }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Cerrar búsqueda")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.search_close))
                         }
                     }
                 },
-                placeholder = { Text("Buscar música y videos") },
+                placeholder = { Text(stringResource(R.string.search_placeholder)) },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors()
             )
@@ -61,7 +63,7 @@ fun SearchField(
             ) {
                 Icon(
                     Icons.Filled.Search,
-                    contentDescription = "Abrir búsqueda",
+                    contentDescription = stringResource(R.string.search_open),
                     modifier = Modifier.size(20.dp)
                 )
             }

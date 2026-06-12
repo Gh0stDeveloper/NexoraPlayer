@@ -18,7 +18,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexora.player.R
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.ui.components.MediaItemRow
 
@@ -35,9 +37,9 @@ fun SearchResultsScreen(
 ) {
     val total = audio.size + videos.size
     val summaryText = if (total == 0) {
-        "No hay coincidencias para \"$query\""
+        stringResource(R.string.results_empty, query)
     } else {
-        "$total coincidencias encontradas"
+        stringResource(R.string.results_count, total)
     }
 
     LazyColumn(
@@ -51,7 +53,7 @@ fun SearchResultsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Resultados de búsqueda", style = MaterialTheme.typography.headlineSmall)
+                    Text(stringResource(R.string.results_title), style = MaterialTheme.typography.headlineSmall)
                     Text(
                         text = summaryText,
                         style = MaterialTheme.typography.bodyMedium,
@@ -67,7 +69,7 @@ fun SearchResultsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    AssistChip(onClick = {}, label = { Text("Audio / Audios (${audio.size})") })
+                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.results_audio_chip, audio.size)) })
                 }
             }
             items(audio, key = { it.id }) { item ->
@@ -93,7 +95,7 @@ fun SearchResultsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    AssistChip(onClick = {}, label = { Text("Videos (${videos.size})") })
+                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.results_video_chip, videos.size)) })
                 }
             }
             items(videos, key = { it.id }) { item ->

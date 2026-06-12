@@ -1,4 +1,3 @@
-
 package com.nexora.player.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +19,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nexora.player.R
 
 @Composable
 fun PlayerMetadata(
@@ -61,18 +62,18 @@ fun PlayerControlsRow(
         horizontalArrangement = Arrangement.Center
     ) {
         IconButton(onClick = onPrevious) {
-            Icon(Icons.Filled.SkipPrevious, contentDescription = "Anterior")
+            Icon(Icons.Filled.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
         }
         Spacer(modifier = Modifier.width(14.dp))
         FilledTonalIconButton(onClick = onTogglePlay) {
             Icon(
                 imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                contentDescription = null
+                contentDescription = if (isPlaying) stringResource(R.string.player_pause) else stringResource(R.string.player_play)
             )
         }
         Spacer(modifier = Modifier.width(14.dp))
         IconButton(onClick = onNext) {
-            Icon(Icons.Filled.SkipNext, contentDescription = "Siguiente")
+            Icon(Icons.Filled.SkipNext, contentDescription = stringResource(R.string.player_next))
         }
     }
 }
