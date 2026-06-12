@@ -135,7 +135,7 @@ nexora-player/
 
 ---
 
-## 📄 Ojo
+## ⚠️ Aviso
 
 Este proyecto es **gratuito** y **no está a la venta**.
 

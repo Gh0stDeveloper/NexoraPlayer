@@ -52,7 +52,8 @@ data class MediaEntry(
     val width: Int? = null,
     val height: Int? = null,
     val mimeType: String? = null,
-    val folder: String? = null
+    val folder: String? = null,
+    val albumId: Long? = null
 ) {
     val resolutionLabel: String
         get() = if (width != null && height != null) "${width}x$height" else "—"

@@ -22,7 +22,8 @@ class MediaStoreRepository(private val context: Context) {
             MediaStore.Audio.Media.DATE_ADDED,
             MediaStore.Audio.Media.SIZE,
             MediaStore.Audio.Media.MIME_TYPE,
-            MediaStore.Audio.Media.RELATIVE_PATH
+            MediaStore.Audio.Media.RELATIVE_PATH,
+            MediaStore.Audio.Media.ALBUM_ID
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
@@ -38,6 +39,7 @@ class MediaStoreRepository(private val context: Context) {
             val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
             val folderCol = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+            val albumIdCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID)
 
             buildList {
                 while (cursor.moveToNext()) {
@@ -55,7 +57,8 @@ class MediaStoreRepository(private val context: Context) {
                             dateAdded = cursor.getLong(dateAddedCol) * 1000L,
                             sizeBytes = cursor.getLong(sizeCol),
                             mimeType = cursor.getString(mimeCol),
-                            folder = folderCol.takeIf { it >= 0 }?.let { cursor.getString(it) }
+                            folder = folderCol.takeIf { it >= 0 }?.let { cursor.getString(it) },
+                            albumId = albumIdCol.takeIf { it >= 0 }?.let { cursor.getLong(it) }
                         )
                     )
                 }
