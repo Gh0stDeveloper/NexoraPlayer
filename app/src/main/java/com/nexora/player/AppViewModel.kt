@@ -30,7 +30,8 @@ data class AppUiState(
     val favorites: List<FavoriteMediaEntity> = emptyList(),
     val playlists: List<PlaylistEntity> = emptyList(),
     val history: List<PlaybackHistoryEntity> = emptyList(),
-    val preferences: AppPreferences = AppPreferences()
+    val preferences: AppPreferences = AppPreferences(),
+    val hiddenAudioIds: Set<Long> = emptySet()
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -70,7 +71,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     audioSort = prefs.audioSort,
                     videoSort = prefs.videoSort,
                     selectedDestination = prefs.lastDestination,
-                    preferences = prefs
+                    preferences = prefs,
+                    hiddenAudioIds = prefs.hiddenAudioIds
                 )
                 refreshLibrary()
             }
@@ -236,10 +238,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+
+    fun toggleHiddenAudio(entry: MediaEntry) {
+        if (entry.kind != MediaKind.AUDIO) return
+        val hidden = _uiState.value.hiddenAudioIds
+        viewModelScope.launch {
+            if (entry.id in hidden) {
+                preferencesRepository.removeHiddenAudioId(entry.id)
+            } else {
+                preferencesRepository.addHiddenAudioId(entry.id)
+            }
+        }
+    }
+
+    fun restoreHiddenAudio() {
+        viewModelScope.launch {
+            preferencesRepository.clearHiddenAudioIds()
+        }
+    }
+
     fun filteredAudio(): List<MediaEntry> {
         val q = _uiState.value.search.trim().lowercase()
-        return _uiState.value.audio.filter {
-            q.isBlank() || it.title.lowercase().contains(q) || it.artist.lowercase().contains(q) || it.album.lowercase().contains(q)
+        val hidden = _uiState.value.hiddenAudioIds
+        return _uiState.value.audio.filter { entry ->
+            entry.id !in hidden && (
+                q.isBlank() ||
+                    entry.title.lowercase().contains(q) ||
+                    entry.artist.lowercase().contains(q) ||
+                    entry.album.lowercase().contains(q)
+            )
         }
     }
 

@@ -1,22 +1,23 @@
-
 package com.nexora.player.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -45,53 +46,75 @@ fun AudioPlayerScreen(
         while (true) {
             positionMs = player.currentPosition
             durationMs = player.duration.takeIf { it > 0L } ?: current.durationMs
-            delay(500)
+            delay(400)
         }
     }
 
     Column(
-        modifier = modifier.fillMaxSize().padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (current == null) {
             Text("No hay contenido en reproducción", style = MaterialTheme.typography.headlineSmall)
             return@Column
         }
 
-        MediaArtwork(
-            item = current,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(320.dp)
-        )
+        Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            MediaArtwork(
+                item = current,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(360.dp)
+            )
+        }
 
-        PlayerMetadata(
-            title = current.title,
-            subtitle = listOfNotNull(
-                current.artist.takeIf { it.isNotBlank() },
-                current.album.takeIf { it.isNotBlank() }
-            ).joinToString(" • "),
-            trailingLabel = formatDuration(current.durationMs)
-        )
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                PlayerMetadata(
+                    title = current.title,
+                    subtitle = listOfNotNull(
+                        current.artist.takeIf { it.isNotBlank() },
+                        current.album.takeIf { it.isNotBlank() },
+                        current.folder?.takeIf { it.isNotBlank() }
+                    ).joinToString(" • "),
+                    trailingLabel = formatDuration(durationMs)
+                )
 
-        PlaybackSeekBar(
-            positionMs = positionMs,
-            durationMs = durationMs,
-            onSeekTo = { player.seekTo(it) }
-        )
+                PlaybackSeekBar(
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    onSeekTo = { player.seekTo(it) }
+                )
 
-        PlayerControlsRow(
-            isPlaying = snapshot.isPlaying,
-            onPrevious = { PlayerEngine.skipPrevious(context) },
-            onTogglePlay = { PlayerEngine.togglePlayPause(context) },
-            onNext = { PlayerEngine.skipNext(context) }
-        )
-
-        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Vista expandida de audio", style = MaterialTheme.typography.titleMedium)
-                Text("La portada y los controles quedan al centro para una lectura más limpia y premium.")
+                PlayerControlsRow(
+                    isPlaying = snapshot.isPlaying,
+                    onPrevious = { PlayerEngine.skipPrevious(context) },
+                    onTogglePlay = { PlayerEngine.togglePlayPause(context) },
+                    onNext = { PlayerEngine.skipNext(context) }
+                )
             }
         }
+
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Reproduciendo ahora", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "La vista se abre con la portada, el progreso y los controles centrados para una lectura más limpia y profesional.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
     }
 }

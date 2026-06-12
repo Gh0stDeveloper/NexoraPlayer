@@ -9,5 +9,6 @@ data class AppPreferences(
     val videoSort: SortMode = SortMode.DATE_ADDED_DESC,
     val lastDestination: AppDestination = AppDestination.MUSIC,
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
-    val dynamicColor: Boolean = true
+    val dynamicColor: Boolean = true,
+    val hiddenAudioIds: Set<Long> = emptySet()
 )

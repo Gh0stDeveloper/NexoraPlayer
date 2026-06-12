@@ -1,4 +1,3 @@
-
 package com.nexora.player.ui.components
 
 import androidx.compose.foundation.clickable
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,14 +21,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.nexora.player.data.model.MediaEntry
 
 @Composable
 fun MediaItemRow(
-    item: MediaEntry,
+    item: com.nexora.player.data.model.MediaEntry,
     isFavorite: Boolean = false,
     onClick: () -> Unit,
-    onFavoriteClick: (() -> Unit)? = null
+    onFavoriteClick: (() -> Unit)? = null,
+    onMoreClick: (() -> Unit)? = null
 ) {
     OutlinedCard(
         shape = RoundedCornerShape(22.dp),
@@ -43,7 +43,7 @@ fun MediaItemRow(
         ) {
             MediaArtwork(
                 item = item,
-                modifier = Modifier.size(56.dp)
+                modifier = Modifier.size(58.dp)
             )
 
             Column(modifier = Modifier.weight(1f)) {
@@ -61,11 +61,17 @@ fun MediaItemRow(
                     }
                 }
                 if (subtitle.isNotBlank()) {
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2
+                    )
                 }
                 Text(
                     "${formatDuration(item.durationMs)} · ${formatBytes(item.sizeBytes)}",
-                    style = MaterialTheme.typography.labelSmall
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -73,8 +79,14 @@ fun MediaItemRow(
                 IconButton(onClick = onFavoriteClick) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = null
+                        contentDescription = if (isFavorite) "Quitar de favoritos" else "Agregar a favoritos"
                     )
+                }
+            }
+
+            if (onMoreClick != null) {
+                IconButton(onClick = onMoreClick) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Más acciones")
                 }
             }
         }

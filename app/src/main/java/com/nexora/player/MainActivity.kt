@@ -1,4 +1,3 @@
-
 package com.nexora.player
 
 import android.Manifest
@@ -16,10 +15,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,12 +48,18 @@ import com.nexora.player.data.model.MediaKind
 import com.nexora.player.ui.components.BottomPlayerBar
 import com.nexora.player.ui.components.GreetingBanner
 import com.nexora.player.ui.components.SearchField
-import com.nexora.player.ui.navigation.*
-import com.nexora.player.ui.screens.*
+import com.nexora.player.ui.screens.FavoritesScreen
+import com.nexora.player.ui.screens.HistoryScreen
+import com.nexora.player.ui.screens.MusicScreen
+import com.nexora.player.ui.screens.NowPlayingScreen
+import com.nexora.player.ui.screens.PlaylistsScreen
+import com.nexora.player.ui.screens.QueueScreen
+import com.nexora.player.ui.screens.SearchResultsScreen
+import com.nexora.player.ui.screens.SettingsScreen
+import com.nexora.player.ui.screens.VideoScreen
 import com.nexora.player.ui.theme.NexoraTheme
 import java.util.Calendar
 
-@OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
 
     private val viewModel: AppViewModel by viewModels()
@@ -59,11 +76,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             var showNowPlaying by rememberSaveable { mutableStateOf(false) }
+            var searchExpanded by rememberSaveable { mutableStateOf(false) }
+            var lastAutoOpenedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
             val greeting = rememberGreeting()
 
-            LaunchedEffect(state.currentItem?.id, state.currentItem?.kind) {
-                if (state.currentItem?.kind == MediaKind.VIDEO) {
+            LaunchedEffect(state.currentItem?.id, state.isPlaying) {
+                val current = state.currentItem
+                if (state.isPlaying && current != null && lastAutoOpenedItemId != current.id) {
                     showNowPlaying = true
+                    lastAutoOpenedItemId = current.id
                 }
             }
 
@@ -88,9 +109,23 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
-                        Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            GreetingBanner(greeting = greeting)
-                            SearchField(query = state.search, onQueryChange = viewModel::setSearch)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            GreetingBanner(
+                                greeting = greeting,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            SearchField(
+                                query = state.search,
+                                expanded = searchExpanded,
+                                onExpandedChange = { searchExpanded = it },
+                                onQueryChange = viewModel::setSearch,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     },
                     bottomBar = {
@@ -108,7 +143,10 @@ class MainActivity : ComponentActivity() {
                                     val selected = state.selectedDestination == destination
                                     NavigationBarItem(
                                         selected = selected,
-                                        onClick = { viewModel.setDestination(destination) },
+                                        onClick = {
+                                            searchExpanded = false
+                                            viewModel.setDestination(destination)
+                                        },
                                         icon = { Icon(iconFor(destination), contentDescription = destination.label) },
                                         label = { Text(destination.label) }
                                     )
@@ -125,9 +163,27 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (showNowPlaying) {
-                    ModalBottomSheet(onDismissRequest = { showNowPlaying = false }) {
-                        Box(modifier = Modifier.fillMaxWidth().heightIn(min = 560.dp)) {
-                            NowPlayingScreen()
+                    val current = state.currentItem
+                    if (current?.kind == MediaKind.VIDEO) {
+                        Dialog(
+                            onDismissRequest = { showNowPlaying = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                NowPlayingScreen(modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                    } else {
+                        ModalBottomSheet(
+                            onDismissRequest = { showNowPlaying = false }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 620.dp)
+                            ) {
+                                NowPlayingScreen(modifier = Modifier.fillMaxSize())
+                            }
                         }
                     }
                 }
@@ -181,9 +237,12 @@ private fun AppContent(
             modifier = modifier,
             items = viewModel.filteredAudio(),
             favorites = viewModel.favoriteIds(),
+            playlists = state.playlists,
             sortMode = state.audioSort,
             onPlay = viewModel::playFromLibrary,
             onToggleFavorite = viewModel::toggleFavorite,
+            onAddToPlaylist = viewModel::addToPlaylist,
+            onHideFromLibrary = viewModel::toggleHiddenAudio,
             onRefresh = viewModel::refreshLibrary,
             onSortSelected = viewModel::setAudioSort
         )
@@ -227,8 +286,10 @@ private fun AppContent(
             modifier = modifier,
             themeMode = state.preferences.themeMode,
             dynamicColor = state.preferences.dynamicColor,
+            hiddenAudioCount = state.hiddenAudioIds.size,
             onThemeChange = viewModel::setThemeMode,
-            onDynamicColorChange = viewModel::setDynamicColor
+            onDynamicColorChange = viewModel::setDynamicColor,
+            onRestoreHiddenAudio = viewModel::restoreHiddenAudio
         )
     }
 }

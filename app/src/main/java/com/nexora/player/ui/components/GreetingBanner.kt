@@ -3,6 +3,9 @@ package com.nexora.player.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,23 +17,28 @@ fun GreetingBanner(
     greeting: String,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    ElevatedCard(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        shape = RoundedCornerShape(24.dp)
     ) {
-        Text(
-            text = greeting,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.secondary
-        )
-        Text(
-            text = "Nexora Player",
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Text(
-            text = "El reproductor de música gratis.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = greeting,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Nexora Player",
+                style = MaterialTheme.typography.headlineSmall
+            )
+            Text(
+                text = "Interfaz compacta, biblioteca local y reproducción inmersiva.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
