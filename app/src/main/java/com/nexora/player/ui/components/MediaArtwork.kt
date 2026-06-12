@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -100,7 +98,7 @@ fun MediaArtwork(
 
             if (artwork == null) {
                 androidx.compose.foundation.Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher),
+                    painter = painterResource(id = R.drawable.ic_media_placeholder),
                     contentDescription = null,
                     modifier = Modifier
                         .size(60.dp)
@@ -116,8 +114,8 @@ fun MediaArtwork(
                     .padding(12.dp)
             ) {
                 Text(
-                    text = item.title.firstOrNull()?.uppercaseChar()?.toString() ?: "N",
-                    style = MaterialTheme.typography.titleLarge,
+                    text = if (item.kind == MediaKind.AUDIO) "Audio" else "Video",
+                    style = MaterialTheme.typography.labelLarge,
                     color = Color.White,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                 )

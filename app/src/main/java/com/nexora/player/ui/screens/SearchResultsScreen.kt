@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -83,7 +83,7 @@ fun SearchResultsScreen(
         if (audio.isNotEmpty() && videos.isNotEmpty()) {
             item {
                 Spacer(Modifier.height(4.dp))
-                Divider()
+                HorizontalDivider()
             }
         }
 

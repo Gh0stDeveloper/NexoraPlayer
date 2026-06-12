@@ -15,7 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AssistChip
@@ -145,7 +145,7 @@ fun SettingsScreen(
                     AssistChip(
                         onClick = { uriHandler.openUri("https://github.com/CHICO-CP") },
                         label = { Text("Perfil") },
-                        leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.OpenInNew, contentDescription = null) }
+                        leadingIcon = { androidx.compose.material3.Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) }
                     )
                 }
                 AssistChip(

@@ -20,8 +20,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlaylistPlay
-import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -309,8 +309,8 @@ private fun rememberGreeting(): String {
 private fun iconFor(destination: AppDestination) = when (destination) {
     AppDestination.MUSIC -> Icons.Filled.LibraryMusic
     AppDestination.VIDEOS -> Icons.Filled.Movie
-    AppDestination.QUEUE -> Icons.Filled.QueueMusic
-    AppDestination.PLAYLISTS -> Icons.Filled.PlaylistPlay
+    AppDestination.QUEUE -> Icons.AutoMirrored.Filled.QueueMusic
+    AppDestination.PLAYLISTS -> Icons.AutoMirrored.Filled.PlaylistPlay
     AppDestination.FAVORITES -> Icons.Filled.Favorite
     AppDestination.HISTORY -> Icons.Filled.History
     AppDestination.SETTINGS -> Icons.Filled.Settings
