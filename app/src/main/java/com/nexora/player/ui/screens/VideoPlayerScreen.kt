@@ -208,10 +208,7 @@ fun VideoPlayerScreen(
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("Gestos rápidos", style = MaterialTheme.typography.titleMedium)
-                Text("Desliza a la izquierda para brillo y a la derecha para volumen. El visor se mantiene realmente a pantalla completa.")
-            }
+            ) 
         }
     }
 }

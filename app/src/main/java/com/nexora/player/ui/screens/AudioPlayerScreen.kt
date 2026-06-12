@@ -107,11 +107,6 @@ fun AudioPlayerScreen(
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Reproduciendo ahora", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "La vista se abre con la portada, el progreso y los controles centrados para una lectura más limpia y profesional.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
 

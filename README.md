@@ -1,92 +1,142 @@
 # 🎵 Nexora Player
 
-> **Your universe of sound & vision** — A sleek, modern media player for Android.
+<p align="center">
+  <img src="ignore/icon.png" alt="Nexora Player logo" width="180" />
+</p>
 
-![Android](https://img.shields.io/badge/Android-24%2B-brightgreen)
-![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue)
-![Build](https://github.com/YOUR_USERNAME/nexora-player/actions/workflows/build.yml/badge.svg)
+<p align="center">
+  <strong>Your universe of sound & vision</strong><br/>
+  Reproductor multimedia moderno para Android, enfocado en audio y video con una interfaz limpia, navegación rápida y reproducción en segundo plano.
+</p>
 
-## ✨ Features
+<p align="center">
+  <img src="https://img.shields.io/badge/Android-24%2B-brightgreen" alt="Android 24+" />
+  <img src="https://img.shields.io/badge/Kotlin-1.9-blue" alt="Kotlin 1.9" />
+  <img src="https://img.shields.io/badge/Jetpack%20Compose-UI-purple" alt="Jetpack Compose" />
+  <img src="https://img.shields.io/badge/Media3-ExoPlayer-ff6f61" alt="Media3 ExoPlayer" />
+</p>
 
-- 🎵 Audio player with MediaStore integration
-- 📹 Video file browser
-- 🔍 Real-time search across all media
-- ❤️ Favourite tracks
-- 🌙 Dynamic greeting (morning / afternoon / evening)
-- 🎨 Deep purple + cyan dark theme
-- 📱 Animated splash screen
-- 🔔 Background playback service (Media3 / ExoPlayer)
+---
 
-## 🏗️ Build locally
+## ¿Qué es Nexora Player?
 
-```bash
-# Clone the repo
-git clone https://github.com/YOUR_USERNAME/nexora-player.git
-cd nexora-player
+**Nexora Player** es una app multimedia para Android diseñada para reproducir música y video desde el almacenamiento del dispositivo con una experiencia visual moderna. La app combina una biblioteca local, un reproductor de audio con cola y favoritos, un reproductor de video con pantalla completa, búsqueda integrada y una sección de ajustes para personalizar el comportamiento general.
 
-# Debug APK
-./gradlew assembleDebug
+Está pensada para ofrecer una experiencia más pulida que un reproductor básico: portada de álbum o miniatura, información clara de la pista, controles visibles, navegación sencilla y reproducción continua en segundo plano.
 
-# Release APK (needs keystore env vars — see below)
-./gradlew assembleRelease
-```
+---
 
+## ✨ Lo que hace la app
 
-## 🔐 GitHub Actions – Release signing
+### Música
+- Lee música desde el dispositivo mediante integración con **MediaStore**.
+- Muestra lista principal de canciones con portada cuando existe metadata disponible.
+- Si una canción no tiene portada, usa un **fallback visual** dedicado.
+- Abre una vista **Now Playing** con información ampliada de la pista.
+- Incluye controles de reproducción, progreso, cola, favoritos e historial.
+- Soporta reproducción en segundo plano mediante **Media3 / ExoPlayer**.
+- Permite ocultar canciones de la lista principal y restaurarlas después desde Ajustes.
+- Permite añadir canciones a playlists y gestionar listas de reproducción.
 
-Add these **Repository Secrets** (`Settings → Secrets → Actions`):
+### Video
+- Explora archivos de video del dispositivo.
+- Abre un reproductor dedicado con diseño más profesional.
+- Soporta pantalla completa real.
+- Incluye gestos para controlar brillo y volumen desde la pantalla.
+- Muestra miniatura o portada del video cuando está disponible.
 
-| Secret               | Value                                          |
-|----------------------|------------------------------------------------|
-| `KEYSTORE_BASE64`    | `base64 -i your-keystore.jks` output          |
-| `KEYSTORE_PASSWORD`  | Store password                                 |
-| `KEY_ALIAS`          | Key alias inside the keystore                  |
-| `KEY_PASSWORD`       | Key password                                   |
+### Búsqueda
+- Búsqueda integrada sobre la biblioteca multimedia.
+- Campo compacto con icono de lupa.
+- La interfaz prioriza espacio útil para el saludo y el nombre de la app.
 
-### Generate a keystore (one-time):
+### Ajustes
+- Enlaces directos a la plataforma del desarrollador.
+- Sección informativa detallada sobre todo lo que hace la app.
+- Opción para restablecer elementos ocultos.
+- Texto legal y descriptivo indicando que la app es gratuita y no está a la venta.
 
-```bash
-keytool -genkey -v \
-  -keystore nexora-release.jks \
-  -alias nexora \
-  -keyalg RSA -keysize 2048 \
-  -validity 10000
+### Experiencia visual
+- Tema oscuro con identidad visual propia.
+- Saludor dinámico según el momento del día.
+- Pantalla de inicio animada.
+- UI más cercana a un reproductor moderno tipo streaming, pero con diseño propio.
 
-# Then encode it:
-base64 -i nexora-release.jks | pbcopy   # macOS
-base64 nexora-release.jks               # Linux – paste output into secret
-```
+---
 
-### Trigger a release:
+## 🧩 Funciones principales
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+- Reproducción de audio local.
+- Reproducción de video local.
+- Portadas de música y miniaturas de video.
+- Reproducción en segundo plano.
+- Cola de reproducción.
+- Favoritos.
+- Historial.
+- Playlists.
+- Ocultar y restaurar canciones.
+- Búsqueda rápida.
+- Ajustes con información ampliada.
+- Interfaz moderna basada en Jetpack Compose.
 
-GitHub Actions will build, sign, and attach the APK to the release automatically.
+---
 
-## 📁 Project structure
+## 🏗️ Estructura del proyecto
 
-```
+```text
 nexora-player/
 ├── app/
 │   └── src/main/
 │       ├── java/com/nexora/player/
-│       │   ├── SplashActivity.kt
 │       │   ├── MainActivity.kt
-│       │   ├── PlayerActivity.kt
-│       │   ├── adapters/MediaAdapter.kt
-│       │   ├── fragments/{Home,Library,Search,Settings}Fragment.kt
-│       │   ├── models/MediaItem.kt
-│       │   ├── services/NexoraPlaybackService.kt
-│       │   ├── utils/{MediaScanner,TimeUtils}.kt
-│       │   └── viewmodels/{Home,Library}ViewModel.kt
-│       └── res/  (layouts, drawables, navigation, values…)
-└── .github/workflows/build.yml
+│       │   ├── NexoraApplication.kt
+│       │   ├── AppViewModel.kt
+│       │   ├── data/
+│       │   │   ├── local/
+│       │   │   ├── model/
+│       │   │   ├── preferences/
+│       │   │   └── repository/
+│       │   ├── playback/
+│       │   │   ├── PlayerEngine.kt
+│       │   │   └── PlayerService.kt
+│       │   └── ui/
+│       │       ├── components/
+│       │       ├── navigation/
+│       │       ├── screens/
+│       │       └── theme/
+│       └── res/
+│           ├── drawable/
+│           ├── mipmap-anydpi-v26/
+│           └── values/
+├── .github/workflows/
+│   └── build.yml
+├── README.md
+└── ignore/icon.png
 ```
 
-## 📄 License
+---
 
-MIT © 2024 Nexora Player
+## 🛠️ Stack técnico
 
+- **Kotlin**
+- **Jetpack Compose**
+- **Material 3**
+- **Media3 / ExoPlayer**
+- **Room**
+- **DataStore / Preferences**
+- **MediaStore**
+- **GitHub Actions** para compilación y releases
+
+---
+
+## 👤 Autor y créditos
+
+**CHICO-CP (Ghost Developer)**
+
+---
+
+## 📄 Ojo
+
+Este proyecto es **gratuito** y **no está a la venta**.
+
+Todos los derechos reservados a **Ghost Developer**.

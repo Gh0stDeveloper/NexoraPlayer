@@ -143,8 +143,8 @@ fun SettingsScreen(
                         leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.Code, contentDescription = null) }
                     )
                     AssistChip(
-                        onClick = { uriHandler.openUri("https://github.com/CHICO-CP") },
-                        label = { Text("Perfil") },
+                        onClick = { uriHandler.openUri("https://t.me/GhostDeve") },
+                        label = { Text("Canal de telegram") },
                         leadingIcon = { androidx.compose.material3.Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) }
                     )
                 }

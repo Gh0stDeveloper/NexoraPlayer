@@ -61,12 +61,6 @@ fun MusicScreen(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Biblioteca de música", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "Vista compacta con portada, acciones rápidas y orden profesional.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = false,
