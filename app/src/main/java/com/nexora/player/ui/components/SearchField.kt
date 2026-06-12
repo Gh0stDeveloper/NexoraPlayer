@@ -1,10 +1,9 @@
 package com.nexora.player.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -37,7 +36,7 @@ fun SearchField(
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -51,16 +50,20 @@ fun SearchField(
                         }
                     }
                 },
-                placeholder = { Text("Buscar música, videos y audios") },
+                placeholder = { Text("Buscar música y videos") },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors()
             )
         } else {
             FilledTonalIconButton(
                 onClick = { onExpandedChange(true) },
-                modifier = Modifier.widthIn(min = 48.dp)
+                modifier = Modifier.size(40.dp)
             ) {
-                Icon(Icons.Filled.Search, contentDescription = "Abrir búsqueda")
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = "Abrir búsqueda",
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

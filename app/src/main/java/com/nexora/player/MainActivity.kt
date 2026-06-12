@@ -114,18 +114,18 @@ class MainActivity : ComponentActivity() {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            GreetingBanner(
-                                greeting = greeting,
-                                modifier = Modifier.fillMaxWidth()
-                            )
                             SearchField(
                                 query = state.search,
                                 expanded = searchExpanded,
                                 onExpandedChange = { searchExpanded = it },
                                 onQueryChange = viewModel::setSearch,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            GreetingBanner(
+                                greeting = greeting,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
