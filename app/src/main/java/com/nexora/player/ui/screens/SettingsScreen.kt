@@ -154,7 +154,7 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(stringResource(R.string.settings_developer), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.settings_developer_identity))
+                Text("Ghost Developer · CHICO-CP")
                 Text(
                     stringResource(R.string.settings_free_notice),
                     style = MaterialTheme.typography.bodyMedium
