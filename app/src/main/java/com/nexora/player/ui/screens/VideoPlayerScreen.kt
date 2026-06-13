@@ -124,14 +124,13 @@ fun VideoPlayerScreen(
         )
     }
 
-    // En portrait los controles son SIEMPRE visibles (true fijo).
-    // En landscape se muestran/ocultan con tap (inician visibles).
+    // Portrait → controles SIEMPRE visibles (no se ocultan nunca)
+    // Landscape → se muestran/ocultan con tap, auto-ocultan a los 5 s
     var landscapeControlsVisible by remember { mutableStateOf(true) }
-
     var showQueuePanel by remember { mutableStateOf(false) }
     var seekFeedbackMs by remember { mutableLongStateOf(0L) }
 
-    // ── Sistema de barras / orientación ────────────────────────────────────────
+    // ── Sistema de barras / orientación ──────────────────────────────────────
     DisposableEffect(isLandscape) {
         if (isLandscape) {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -148,16 +147,15 @@ fun VideoPlayerScreen(
         }
     }
 
-    // ── Auto-ocultar controles SOLO en landscape ───────────────────────────────
+    // Auto-ocultar controles SOLO en landscape
     LaunchedEffect(landscapeControlsVisible, isLandscape) {
         if (isLandscape && landscapeControlsVisible) {
             delay(5_000L)
             landscapeControlsVisible = false
         }
-        // En portrait no se toca nada → controles siempre visibles
+        // En portrait no hacemos nada → controles permanecen visibles
     }
 
-    // ── Feedback de seek ───────────────────────────────────────────────────────
     LaunchedEffect(seekFeedbackMs) {
         if (seekFeedbackMs != 0L) {
             delay(550)
@@ -173,10 +171,15 @@ fun VideoPlayerScreen(
         }
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    // FIX: window.attributes no acepta safe-call en el lado izquierdo de =
     fun setBrightness(value: Float) {
         brightness = value.coerceIn(0.05f, 1f)
-        activity?.window?.attributes =
-            activity?.window?.attributes?.apply { screenBrightness = brightness }
+        activity?.window?.let { win ->
+            val lp = win.attributes
+            lp.screenBrightness = brightness
+            win.attributes = lp
+        }
     }
 
     fun setVolume(value: Float) {
@@ -224,13 +227,9 @@ fun VideoPlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-
-        // ── Superficie de video ────────────────────────────────────────────────
+        // Superficie de video
         if (isLandscape) {
-            LandscapePlayerSurface(
-                exoPlayer = exoPlayer,
-                modifier = Modifier.fillMaxSize()
-            )
+            LandscapePlayerSurface(exoPlayer = exoPlayer, modifier = Modifier.fillMaxSize())
         } else {
             PortraitPlayerSurface(
                 exoPlayer = exoPlayer,
@@ -242,20 +241,17 @@ fun VideoPlayerScreen(
             )
         }
 
-        // ── Capa de tap ────────────────────────────────────────────────────────
-        // En portrait: doble-tap para seek; tap simple no hace nada (controles fijos).
-        // En landscape: tap simple muestra/oculta controles; doble-tap hace seek.
+        // Capa de tap:
+        //   Portrait  → doble-tap seek, tap simple sin efecto (controles fijos)
+        //   Landscape → tap simple toggle controles, doble-tap seek
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(0f)
                 .pointerInput(isLandscape) {
                     detectTapGestures(
-                        onTap = { _ ->
-                            if (isLandscape) {
-                                landscapeControlsVisible = !landscapeControlsVisible
-                            }
-                            // En portrait no se ocultan, así que no hacemos nada
+                        onTap = {
+                            if (isLandscape) landscapeControlsVisible = !landscapeControlsVisible
                         },
                         onDoubleTap = { offset ->
                             if (offset.x < size.width / 2f) seekBy(-10_000L)
@@ -266,35 +262,31 @@ fun VideoPlayerScreen(
                 }
         )
 
-        // ── Control por gestos (brillo/volumen) ───────────────────────────────
+        // Gestos de brillo/volumen
         GestureControlOverlay(
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(0f),
+            modifier = Modifier.fillMaxSize().zIndex(0f),
             brightness = brightness,
             volume = volumeFraction,
             onBrightnessChange = ::setBrightness,
             onVolumeChange = ::setVolume
         )
 
-        // ── HUD de seek ────────────────────────────────────────────────────────
+        // HUD de seek (±10 s)
         AnimatedVisibility(
             visible = seekFeedbackMs != 0L,
             enter = fadeIn(),
-            exit = fadeOut()
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center).zIndex(2f)
         ) {
             SeekFeedbackHud(
                 deltaMs = seekFeedbackMs,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .zIndex(2f)
-                    .padding(24.dp)
+                modifier = Modifier.padding(24.dp)
             )
         }
 
-        // ── Overlay de controles ───────────────────────────────────────────────
-        // Portrait → siempre visible (no AnimatedVisibility, simplemente siempre compuesto).
-        // Landscape → AnimatedVisibility controlado por landscapeControlsVisible.
+        // ── Overlay de controles ──────────────────────────────────────────────
+        // Landscape → AnimatedVisibility (se oculta/muestra)
+        // Portrait  → siempre visible, sin wrapping de visibilidad
         if (isLandscape) {
             AnimatedVisibility(
                 visible = landscapeControlsVisible,
@@ -302,9 +294,7 @@ fun VideoPlayerScreen(
                 exit = fadeOut()
             ) {
                 VideoOverlayChrome(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .zIndex(2f),
+                    modifier = Modifier.fillMaxSize().zIndex(2f),
                     currentItem = currentItem,
                     queueCount = queue.size,
                     queueFromCurrent = queueFromCurrent,
@@ -315,33 +305,18 @@ fun VideoPlayerScreen(
                     positionMs = exoPlayer.currentPosition,
                     durationMs = durationMs,
                     onSeekTo = { exoPlayer.seekTo(it) },
-                    onPrevious = {
-                        PlayerEngine.skipPrevious(context)
-                        landscapeControlsVisible = true
-                    },
-                    onTogglePlay = {
-                        PlayerEngine.togglePlayPause(context)
-                        landscapeControlsVisible = true
-                    },
-                    onNext = {
-                        PlayerEngine.skipNext(context)
-                        landscapeControlsVisible = true
-                    },
+                    onPrevious = { PlayerEngine.skipPrevious(context); landscapeControlsVisible = true },
+                    onTogglePlay = { PlayerEngine.togglePlayPause(context); landscapeControlsVisible = true },
+                    onNext = { PlayerEngine.skipNext(context); landscapeControlsVisible = true },
                     onEnterFullscreen = {
-                        activity?.requestedOrientation =
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                     },
                     onExitFullscreen = {
-                        activity?.requestedOrientation =
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                     },
-                    onToggleQueue = {
-                        showQueuePanel = !showQueuePanel
-                        landscapeControlsVisible = true
-                    },
+                    onToggleQueue = { showQueuePanel = !showQueuePanel; landscapeControlsVisible = true },
                     onBack = {
-                        activity?.requestedOrientation =
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                     },
                     onJumpToQueueIndex = { index ->
                         PlayerEngine.jumpTo(context, index)
@@ -350,11 +325,9 @@ fun VideoPlayerScreen(
                 )
             }
         } else {
-            // Portrait → controles persistentes, sin AnimatedVisibility
+            // Portrait: sin AnimatedVisibility → siempre visible
             VideoOverlayChrome(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(2f),
+                modifier = Modifier.fillMaxSize().zIndex(2f),
                 currentItem = currentItem,
                 queueCount = queue.size,
                 queueFromCurrent = queueFromCurrent,
@@ -369,12 +342,10 @@ fun VideoPlayerScreen(
                 onTogglePlay = { PlayerEngine.togglePlayPause(context) },
                 onNext = { PlayerEngine.skipNext(context) },
                 onEnterFullscreen = {
-                    activity?.requestedOrientation =
-                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 },
                 onExitFullscreen = {
-                    activity?.requestedOrientation =
-                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 },
                 onToggleQueue = { showQueuePanel = !showQueuePanel },
                 onBack = onClose,
@@ -382,16 +353,15 @@ fun VideoPlayerScreen(
             )
         }
 
-        // ── Panel de cola ──────────────────────────────────────────────────────
+        // Panel de cola
         AnimatedVisibility(
             visible = showQueuePanel && queueFromCurrent.isNotEmpty(),
             enter = expandVertically(),
-            exit = shrinkVertically()
+            exit = shrinkVertically(),
+            modifier = Modifier.align(Alignment.BottomCenter).zIndex(2f)
         ) {
             QueueDrawer(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .zIndex(2f)
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 items = queueFromCurrent,
@@ -405,8 +375,6 @@ fun VideoPlayerScreen(
         }
     }
 }
-
-// ── Surfaces ───────────────────────────────────────────────────────────────────
 
 @Composable
 private fun LandscapePlayerSurface(
@@ -456,6 +424,7 @@ private fun PortraitPlayerSurface(
                 },
                 modifier = Modifier.fillMaxSize()
             )
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -468,8 +437,6 @@ private fun PortraitPlayerSurface(
         }
     }
 }
-
-// ── Overlay de controles ───────────────────────────────────────────────────────
 
 @Composable
 private fun VideoOverlayChrome(
@@ -525,9 +492,7 @@ private fun VideoOverlayChrome(
 
                 Card(
                     shape = RoundedCornerShape(32.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.Black.copy(alpha = 0.28f)
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.28f)),
                     modifier = Modifier.fillMaxWidth(if (isLandscape) 0.72f else 0.96f)
                 ) {
                     Column(
@@ -540,16 +505,8 @@ private fun VideoOverlayChrome(
                             onPrevious = onPrevious,
                             onTogglePlay = onTogglePlay,
                             onNext = onNext,
-                            onRewind = {
-                                onSeekTo((positionMs - 10_000L).coerceAtLeast(0L))
-                            },
-                            onForward = {
-                                onSeekTo(
-                                    (positionMs + 10_000L).coerceAtMost(
-                                        durationMs.coerceAtLeast(positionMs + 10_000L)
-                                    )
-                                )
-                            }
+                            onRewind = { onSeekTo((positionMs - 10_000L).coerceAtLeast(0L)) },
+                            onForward = { onSeekTo((positionMs + 10_000L).coerceAtMost(durationMs.coerceAtLeast(positionMs + 10_000L))) }
                         )
 
                         PlaybackSeekBar(
@@ -600,4 +557,395 @@ private fun VideoOverlayChrome(
             )
         }
     }
+}
+
+@Composable
+private fun TopChrome(
+    currentItem: MediaEntry,
+    queueCount: Int,
+    isLandscape: Boolean,
+    onBack: () -> Unit,
+    onToggleQueue: () -> Unit,
+    onFullscreenToggle: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.Black.copy(alpha = 0.34f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = if (isLandscape) 8.dp else 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilledTonalIconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            ) {
+                Text(
+                    text = currentItem.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    maxLines = 1
+                )
+                Text(
+                    text = currentItem.folder?.takeIf { it.isNotBlank() } ?: stringResource(R.string.video_local_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White.copy(alpha = 0.72f),
+                    maxLines = 1
+                )
+            }
+
+            if (queueCount > 1) {
+                FilledTonalIconButton(onClick = onToggleQueue) {
+                    Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Lista de reproducción")
+                }
+            }
+
+            IconButton(onClick = onFullscreenToggle) {
+                Icon(
+                    imageVector = if (isLandscape) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                    contentDescription = if (isLandscape) "Minimizar" else "Pantalla completa",
+                    tint = Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomChrome(
+    currentItem: MediaEntry,
+    isLandscape: Boolean,
+    positionMs: Long,
+    durationMs: Long,
+    onSeekTo: (Long) -> Unit,
+    onToggleQueue: () -> Unit,
+    onFullscreenToggle: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Black.copy(alpha = 0.34f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth(if (isLandscape) 0.76f else 1f)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = currentItem.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "${currentItem.resolutionLabel} • ${formatDuration(currentItem.durationMs)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.74f),
+                        maxLines = 1
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalIconButton(onClick = onToggleQueue) {
+                        Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Abrir cola")
+                    }
+                    FilledTonalIconButton(onClick = onFullscreenToggle) {
+                        Icon(
+                            imageVector = if (isLandscape) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                            contentDescription = if (isLandscape) "Minimizar" else "Pantalla completa"
+                        )
+                    }
+                }
+            }
+
+            PlaybackSeekBar(
+                positionMs = positionMs,
+                durationMs = durationMs,
+                onSeekTo = onSeekTo,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionCluster(
+    isPlaying: Boolean,
+    onPrevious: () -> Unit,
+    onTogglePlay: () -> Unit,
+    onNext: () -> Unit,
+    onRewind: () -> Unit,
+    onForward: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CompactActionButton(
+            icon = Icons.Filled.Replay10,
+            label = "10s",
+            onClick = onRewind
+        )
+        CompactActionButton(
+            icon = Icons.Filled.SkipPrevious,
+            label = "Prev",
+            onClick = onPrevious
+        )
+        FilledTonalIconButton(
+            onClick = onTogglePlay,
+            modifier = Modifier.size(64.dp)
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                modifier = Modifier.size(30.dp)
+            )
+        }
+        CompactActionButton(
+            icon = Icons.Filled.SkipNext,
+            label = "Next",
+            onClick = onNext
+        )
+        CompactActionButton(
+            icon = Icons.Filled.Forward10,
+            label = "10s",
+            onClick = onForward
+        )
+    }
+}
+
+@Composable
+private fun CompactActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        FilledTonalIconButton(onClick = onClick) {
+            Icon(imageVector = icon, contentDescription = label)
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.8f)
+        )
+    }
+}
+
+@Composable
+private fun QueueDrawer(
+    modifier: Modifier = Modifier,
+    items: List<MediaEntry>,
+    startIndex: Int,
+    onItemClick: (Int) -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Black.copy(alpha = 0.70f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.size(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Siguiente reproducción",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Toca un video para saltar a él",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.65f)
+                    )
+                }
+            }
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(items) { index, item ->
+                    QueueItemCard(
+                        item = item,
+                        index = startIndex + index,
+                        onClick = { onItemClick(startIndex + index) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueuePreviewRow(
+    items: List<MediaEntry>,
+    startIndex: Int,
+    onItemClick: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Continuará",
+                style = MaterialTheme.typography.titleSmall,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = "${items.size} videos",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.65f)
+            )
+        }
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            itemsIndexed(items) { index, item ->
+                QueueItemCard(
+                    item = item,
+                    index = startIndex + index,
+                    onClick = { onItemClick(startIndex + index) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueueItemCard(
+    item: MediaEntry,
+    index: Int,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.06f)),
+        modifier = Modifier.size(width = 170.dp, height = 124.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.height(76.dp)) {
+                MediaArtwork(
+                    item = item,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f))
+                            )
+                        )
+                )
+                Text(
+                    text = "#${index + 1}",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .padding(10.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White,
+                    maxLines = 1
+                )
+                Text(
+                    text = formatDuration(item.durationMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.68f),
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeekFeedbackHud(
+    deltaMs: Long,
+    modifier: Modifier = Modifier
+) {
+    val forward = deltaMs >= 0L
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        color = Color.Black.copy(alpha = 0.70f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (forward) Icons.Filled.Forward10 else Icons.Filled.Replay10,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+            Column {
+                Text(
+                    text = if (forward) "Avanzar" else "Retroceder",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Text(
+                    text = if (forward) "+10 s" else "-10 s",
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
+    }
+}
+
+private fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
