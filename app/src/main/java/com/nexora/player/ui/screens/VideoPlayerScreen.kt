@@ -434,14 +434,21 @@ private fun PortraitScreen(
                     }
             )
 
-            // Seek feedback HUD
-            AnimatedVisibility(
-                visible  = seekFeedbackMs != 0L,
-                enter    = fadeIn(),
-                exit     = fadeOut(),
-                modifier = Modifier.align(Alignment.Center)
+            // Seek feedback HUD — Column provee ColumnScope explícito,
+            // evitando la ambigüedad con el ColumnScope externo del layout.
+            // No intercepta toques porque no tiene handler de gestos.
+            Column(
+                modifier            = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                SeekFeedbackHud(seekFeedbackMs)
+                AnimatedVisibility(
+                    visible = seekFeedbackMs != 0L,
+                    enter   = fadeIn(),
+                    exit    = fadeOut()
+                ) {
+                    SeekFeedbackHud(seekFeedbackMs)
+                }
             }
         }
 
