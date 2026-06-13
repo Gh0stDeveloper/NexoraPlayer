@@ -6,28 +6,52 @@ import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.media.AudioManager
-import android.view.HapticFeedbackConstants
 import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Replay10
-import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,7 +78,6 @@ import com.nexora.player.ui.components.PlayerControlsRow
 import com.nexora.player.ui.components.PlayerMetadata
 import com.nexora.player.ui.components.PlaybackSeekBar
 import com.nexora.player.ui.components.formatDuration
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -69,60 +92,53 @@ fun VideoPlayerScreen(
     val activity = context.findActivity()
     val exoPlayer = PlayerEngine.get(context)
     val snapshot by PlayerEngine.snapshot.collectAsState()
+    val scope = rememberCoroutineScope()
     val audioManager = context.getSystemService<AudioManager>()
     val maxVolume = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 1
     val currentVolume = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
     val volumeFraction = currentVolume.toFloat() / maxVolume.toFloat()
 
-    // Orientación real del dispositivo
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var brightness by remember {
-        mutableFloatStateOf(
-            activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.6f
-        )
+        mutableFloatStateOf(activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.6f)
     }
-
-    // Estado de visibilidad de los controles superpuestos
     var showControls by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
-
-    // Feedback visual del doble toque (avance/retroceso)
     var showRewindIndicator by remember { mutableStateOf(false) }
     var showForwardIndicator by remember { mutableStateOf(false) }
 
-    // Ocultar barras del sistema en landscape
     DisposableEffect(isLandscape) {
         if (isLandscape) {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             val controller = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
             controller?.hide(WindowInsetsCompat.Type.systemBars())
-            controller?.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         onDispose {
-            // Restaurar al salir
-            activity?.window?.let { WindowCompat.getInsetsController(it, view) }
-                ?.show(WindowInsetsCompat.Type.systemBars())
+            activity?.window?.let { WindowCompat.getInsetsController(it, view) }?.show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
-    // Temporizador de auto-ocultación: cada vez que showControls se vuelve true, inicia cuenta atrás
     LaunchedEffect(showControls) {
         if (showControls) {
-            delay(4000) // 4 segundos
+            delay(3500)
             showControls = false
         }
     }
 
-    // Funciones de brillo y volumen
+    BackHandler {
+        if (isLandscape) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        } else {
+            activity?.onBackPressedDispatcher?.onBackPressed()
+        }
+    }
+
     fun setBrightness(value: Float) {
         brightness = value.coerceIn(0.05f, 1f)
-        activity?.window?.attributes = activity?.window?.attributes?.apply {
-            screenBrightness = brightness
-        }
+        activity?.window?.attributes = activity?.window?.attributes?.apply { screenBrightness = brightness }
     }
 
     fun setVolume(value: Float) {
@@ -133,9 +149,7 @@ fun VideoPlayerScreen(
         )
     }
 
-    // --- Interfaz según orientación ---
     if (current == null) {
-        // Sin contenido
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -148,180 +162,172 @@ fun VideoPlayerScreen(
     }
 
     if (isLandscape) {
-        // --- MODO PANTALLA COMPLETA INMERSIVO ---
         Box(modifier = modifier.fillMaxSize()) {
-            // Reproductor de video (sin controles propios)
             AndroidView(
                 factory = {
                     PlayerView(it).apply {
-                        this.player = exoPlayer
-                        useController = false   // Desactivamos los controles por defecto
+                        player = exoPlayer
+                        useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
+                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                     }
                 },
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Toque simple para mostrar/ocultar controles
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            // No usamos detectTapGestures para no interferir con otros gestos
-                            // Simplemente cambiamos el estado al detectar un toque simple
-                            waitForUpOrCancellation()
-                            showControls = !showControls
-                        }
+                        detectTapGestures(
+                            onTap = { showControls = !showControls },
+                            onDoubleTap = { offset ->
+                                if (offset.x < size.width / 2f) {
+                                    PlayerEngine.skipPrevious(context)
+                                    showRewindIndicator = true
+                                    showForwardIndicator = false
+                                } else {
+                                    PlayerEngine.skipNext(context)
+                                    showForwardIndicator = true
+                                    showRewindIndicator = false
+                                }
+                                scope.launch {
+                                    delay(350)
+                                    showRewindIndicator = false
+                                    showForwardIndicator = false
+                                }
+                            }
+                        )
                     }
             )
 
-            // Doble toque lateral para saltar 10s
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        // Implementaremos el doble toque manualmente
-                        // Para simplificar, puedes usar detectTapGestures, pero cuidado con solapamientos
-                        // Aquí una versión simplificada con detectTapGestures
-                        // Nota: en producción puedes refinarlo para que no choque con el toque simple.
-                    }
-            )
-
-            // Indicadores de avance/retroceso
             AnimatedVisibility(visible = showRewindIndicator) {
                 Icon(
-                    Icons.Filled.Replay10, "Retroceder",
+                    Icons.Filled.Replay10,
+                    contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier
                         .align(Alignment.CenterStart)
                         .padding(32.dp)
-                        .size(48.dp)
+                        .size(54.dp)
                 )
             }
             AnimatedVisibility(visible = showForwardIndicator) {
                 Icon(
-                    Icons.Filled.Forward10, "Avanzar",
+                    Icons.Filled.Forward10,
+                    contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .padding(32.dp)
-                        .size(48.dp)
+                        .size(54.dp)
                 )
             }
 
-            // Gradiente superior
-            AnimatedVisibility(
-                visible = showControls,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
+            AnimatedVisibility(visible = showControls, enter = fadeIn(), exit = fadeOut()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(100.dp)
+                        .height(108.dp)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
+                                colors = listOf(Color.Black.copy(alpha = 0.78f), Color.Transparent)
                             )
                         )
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
-                    // Botón atrás
-                    FilledTonalIconButton(
-                        onClick = {
-                            // Acción de volver (navegar hacia atrás)
-                        },
-                        modifier = Modifier.align(Alignment.CenterStart)
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.30f),
+                        shape = RoundedCornerShape(18.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilledTonalIconButton(onClick = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT }) {
+                                Icon(Icons.Filled.ArrowBack, contentDescription = "Salir")
+                            }
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(current.title, style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1)
+                                Text(current.folder?.takeIf { it.isNotBlank() } ?: stringResource(R.string.video_local_label), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
+                            }
+
+                            FilledTonalIconButton(onClick = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT }) {
+                                Icon(Icons.Filled.FullscreenExit, contentDescription = "Salir de pantalla completa")
+                            }
+                        }
                     }
-                    // Título
-                    Text(
-                        text = current.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
                 }
             }
 
-            // Gradiente inferior con controles
-            AnimatedVisibility(
-                visible = showControls,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
+            AnimatedVisibility(visible = showControls, enter = fadeIn(), exit = fadeOut()) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f))
                             )
                         )
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Card(
+                        shape = RoundedCornerShape(28.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.30f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Barra de progreso + tiempos
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                text = formatDuration(exoPlayer.currentPosition),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.9f)
-                            )
-                            PlaybackSeekBar(
-                                positionMs = exoPlayer.currentPosition,
-                                durationMs = exoPlayer.duration.takeIf { it > 0L } ?: current.durationMs,
-                                onSeekTo = { exoPlayer.seekTo(it) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(horizontal = 8.dp)
-                            )
-                            Text(
-                                text = formatDuration(exoPlayer.duration.takeIf { it > 0L } ?: current.durationMs),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.9f)
-                            )
-                        }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(formatDuration(exoPlayer.currentPosition), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.88f))
+                                PlaybackSeekBar(
+                                    positionMs = exoPlayer.currentPosition,
+                                    durationMs = exoPlayer.duration.takeIf { it > 0L } ?: current.durationMs,
+                                    onSeekTo = { exoPlayer.seekTo(it) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 8.dp)
+                                )
+                                Text(formatDuration(exoPlayer.duration.takeIf { it > 0L } ?: current.durationMs), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.88f))
+                            }
 
-                        // Controles de reproducción
-                        PlayerControlsRow(
-                            isPlaying = snapshot.isPlaying,
-                            onPrevious = { PlayerEngine.skipPrevious(context) },
-                            onTogglePlay = { PlayerEngine.togglePlayPause(context) },
-                            onNext = { PlayerEngine.skipNext(context) }
-                        )
-
-                        // Botón de pantalla completa (salir de fullscreen)
-                        IconButton(
-                            onClick = {
-                                activity?.requestedOrientation =
-                                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                            },
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Icon(
-                                Icons.Filled.FullscreenExit,
-                                contentDescription = "Salir de pantalla completa",
-                                tint = Color.White
+                            PlayerControlsRow(
+                                isPlaying = snapshot.isPlaying,
+                                onPrevious = { PlayerEngine.skipPrevious(context) },
+                                onTogglePlay = { PlayerEngine.togglePlayPause(context) },
+                                onNext = { PlayerEngine.skipNext(context) }
                             )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Desliza a la izquierda/derecha para brillo y volumen",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.7f)
+                                )
+                                FilledTonalIconButton(onClick = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT }) {
+                                    Icon(Icons.Filled.Fullscreen, contentDescription = "Salir de pantalla completa")
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // Gestos de brillo/volumen (tu overlay ya existente)
             GestureControlOverlay(
                 modifier = Modifier.fillMaxSize(),
                 brightness = brightness,
@@ -331,7 +337,6 @@ fun VideoPlayerScreen(
             )
         }
     } else {
-        // --- MODO RETRATO (VIDEO + DETALLES) ---
         Column(
             modifier = modifier
                 .fillMaxSize()
@@ -339,34 +344,29 @@ fun VideoPlayerScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Video en la parte superior (relación 16:9)
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 tonalElevation = 2.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
+                    .weight(1f, fill = false)
             ) {
                 AndroidView(
                     factory = {
                         PlayerView(it).apply {
-                            this.player = exoPlayer
+                            player = exoPlayer
                             useController = false
                             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
+                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                         }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
             }
 
-            // Metadatos y controles
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(20.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -374,8 +374,7 @@ fun VideoPlayerScreen(
                 ) {
                     PlayerMetadata(
                         title = current.title,
-                        subtitle = current.folder?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.video_local_label),
+                        subtitle = current.folder?.takeIf { it.isNotBlank() } ?: stringResource(R.string.video_local_label),
                         trailingLabel = formatDuration(current.durationMs)
                     )
 
@@ -394,29 +393,16 @@ fun VideoPlayerScreen(
                 }
             }
 
-            // Botón para pasar a pantalla completa
             FilledTonalIconButton(
-                onClick = {
-                    activity?.requestedOrientation =
-                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                },
+                onClick = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE },
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
                 Icon(Icons.Filled.Fullscreen, contentDescription = "Pantalla completa")
-            }
-
-            // Aquí puedes dejar la tarjeta de gestos si quieres
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(stringResource(R.string.video_gestures_title), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.video_gestures_desc))
-                }
             }
         }
     }
 }
 
-// Helper para encontrar la Activity
 private fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
