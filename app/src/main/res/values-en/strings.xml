@@ -147,4 +147,5 @@
     <string name="lyrics_mark_time">Mark current time</string>
     <string name="queue_next">Up next</string>
     <string name="queue_empty_short">There are no more items in the queue.</string>
+    <string name="save">Save</string>
 </resources>
