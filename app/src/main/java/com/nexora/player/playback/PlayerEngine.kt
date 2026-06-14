@@ -101,6 +101,13 @@ object PlayerEngine {
         }
     }
 
+    fun seekTo(context: Context, positionMs: Long) {
+        val player = get(context)
+        val safePosition = positionMs.coerceAtLeast(0L)
+        player.seekTo(safePosition)
+        updateSnapshot(player)
+    }
+
     fun removeAt(context: Context, index: Int) {
         val player = get(context)
         if (index in 0 until player.mediaItemCount) {

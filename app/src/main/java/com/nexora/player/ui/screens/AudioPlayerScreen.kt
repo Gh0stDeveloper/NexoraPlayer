@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MusicNote
@@ -102,11 +103,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToLong
 
 @Composable
 fun AudioPlayerScreen(
     modifier: Modifier = Modifier,
-    current: MediaEntry?
+    current: MediaEntry?,
+    onClose: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val player = PlayerEngine.get(context)
@@ -119,6 +122,7 @@ fun AudioPlayerScreen(
     var lyricsLoading by remember { mutableStateOf(false) }
     var allowOnlineLyrics by rememberSaveable(current?.id) { mutableStateOf(false) }
     var showLyricsEditor by rememberSaveable(current?.id) { mutableStateOf(false) }
+    var artworkStyle by rememberSaveable(current?.id) { mutableStateOf(ArtworkStyle.DISC) }
 
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
@@ -153,7 +157,7 @@ fun AudioPlayerScreen(
     val upNext = if (queue.isEmpty()) emptyList() else queue.drop(currentIndex + 1)
 
     BackHandler {
-        dispatchBackPress(context)
+        onClose()
     }
 
     LaunchedEffect(current?.id, snapshot.isPlaying) {
@@ -243,11 +247,15 @@ fun AudioPlayerScreen(
             TopBar(
                 current = current,
                 isFavorite = isFavorite,
-                onBack = { dispatchBackPress(context) },
+                artworkStyle = artworkStyle,
+                onBack = { onClose() },
                 onToggleFavorite = {
                     scope.launch {
                         toggleFavorite(context, current)
                     }
+                },
+                onChangeArtworkStyle = {
+                    artworkStyle = artworkStyle.next()
                 }
             )
 
@@ -258,75 +266,13 @@ fun AudioPlayerScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(310.dp)
-                        .shadow(30.dp, CircleShape, clip = false)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.06f))
-                        .border(width = 1.dp, color = Color.White.copy(alpha = 0.12f), shape = CircleShape)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(262.dp)
-                            .shadow(18.dp, CircleShape, clip = false)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        Color.White.copy(alpha = 0.08f),
-                                        Color.Black.copy(alpha = 0.45f)
-                                    )
-                                )
-                            )
-                    ) {
-                        if (artwork != null) {
-                            Image(
-                                bitmap = artwork!!,
-                                contentDescription = current.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                                    .shadow(14.dp, CircleShape)
-                                    .graphicsLayer(rotationZ = if (snapshot.isPlaying) rotation else 0f)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.MusicNote,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier
-                                    .size(92.dp)
-                                    .align(Alignment.Center)
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(78.dp)
-                                .align(Alignment.Center)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.35f))
-                                .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .background(
-                                    Brush.radialGradient(
-                                        colors = listOf(
-                                            Color.Transparent,
-                                            Color.Black.copy(alpha = 0.12f)
-                                        ),
-                                        radius = 420f
-                                    )
-                                )
-                        )
-                    }
-                }
+                ArtworkDisplay(
+                    artwork = artwork,
+                    title = current.title,
+                    isPlaying = snapshot.isPlaying,
+                    rotation = rotation,
+                    style = artworkStyle
+                )
 
                 Spacer(modifier = Modifier.height(26.dp))
 
@@ -363,7 +309,34 @@ fun AudioPlayerScreen(
                     AssistChip(onClick = {}, label = { Text(formatDuration(current.durationMs)) })
                     AssistChip(onClick = {}, label = { Text("${currentIndex + 1}/${queue.size.coerceAtLeast(1)}") })
                     AssistChip(onClick = {}, label = { Text(if (snapshot.isPlaying) "En reproducción" else "En pausa") })
+                    AssistChip(
+                        onClick = {
+                            scope.launch { toggleFavorite(context, current) }
+                        },
+                        label = { Text(if (isFavorite) "Favorito" else "Agregar favorito") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                contentDescription = null
+                            )
+                        }
+                    )
                 }
+
+                PlaybackProgressSection(
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    onSeek = { target -> PlayerEngine.seekTo(context, target) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                TransportControls(
+                    isPlaying = snapshot.isPlaying,
+                    onPrevious = { PlayerEngine.skipPrevious(context) },
+                    onTogglePlay = { PlayerEngine.togglePlayPause(context) },
+                    onNext = { PlayerEngine.skipNext(context) },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             LyricsAndQueueCard(
@@ -409,8 +382,10 @@ fun AudioPlayerScreen(
 private fun TopBar(
     current: MediaEntry,
     isFavorite: Boolean,
+    artworkStyle: ArtworkStyle,
     onBack: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    onChangeArtworkStyle: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -447,13 +422,215 @@ private fun TopBar(
             color = Color.White.copy(alpha = 0.08f),
             shape = CircleShape
         ) {
-            IconButton(onClick = onToggleFavorite) {
+            IconButton(onClick = onChangeArtworkStyle) {
                 Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = if (isFavorite) "Quitar favorito" else "Agregar favorito",
-                    tint = if (isFavorite) Color(0xFFF87171) else Color.White
+                    imageVector = Icons.Filled.Checkroom,
+                    contentDescription = when (artworkStyle) {
+                        ArtworkStyle.DISC -> "Cambiar a carátula cuadrada"
+                        ArtworkStyle.SQUARE -> "Cambiar a portada"
+                        ArtworkStyle.COVER -> "Cambiar a disco"
+                    },
+                    tint = Color.White
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ArtworkDisplay(
+    artwork: ImageBitmap?,
+    title: String,
+    isPlaying: Boolean,
+    rotation: Float,
+    style: ArtworkStyle,
+    modifier: Modifier = Modifier
+) {
+    val outerShape = when (style) {
+        ArtworkStyle.DISC -> CircleShape
+        ArtworkStyle.SQUARE -> RoundedCornerShape(34.dp)
+        ArtworkStyle.COVER -> RoundedCornerShape(42.dp)
+    }
+
+    val outerSize = when (style) {
+        ArtworkStyle.DISC -> 310.dp
+        ArtworkStyle.SQUARE -> 304.dp
+        ArtworkStyle.COVER -> 304.dp
+    }
+
+    val innerSize = when (style) {
+        ArtworkStyle.DISC -> 262.dp
+        ArtworkStyle.SQUARE -> 260.dp
+        ArtworkStyle.COVER -> 260.dp
+    }
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(outerSize)
+            .shadow(30.dp, outerShape, clip = false)
+            .clip(outerShape)
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(width = 1.dp, color = Color.White.copy(alpha = 0.12f), shape = outerShape)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(innerSize)
+                .shadow(18.dp, outerShape, clip = false)
+                .clip(outerShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.08f),
+                            Color.Black.copy(alpha = 0.45f)
+                        )
+                    )
+                )
+        ) {
+            if (artwork != null) {
+                Image(
+                    bitmap = artwork,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(outerShape)
+                        .shadow(14.dp, outerShape)
+                        .graphicsLayer(rotationZ = if (style == ArtworkStyle.DISC && isPlaying) rotation else 0f)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.MusicNote,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(92.dp)
+                        .align(Alignment.Center)
+                )
+            }
+
+            if (style == ArtworkStyle.DISC) {
+                Box(
+                    modifier = Modifier
+                        .size(78.dp)
+                        .align(Alignment.Center)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.35f))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.12f)
+                            ),
+                            radius = 420f
+                        )
+                    )
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaybackProgressSection(
+    positionMs: Long,
+    durationMs: Long,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isDragging by rememberSaveable { mutableStateOf(false) }
+    var progress by remember(positionMs, durationMs) {
+        mutableStateOf(
+            if (durationMs > 0L) positionMs.toFloat() / durationMs.toFloat() else 0f
+        )
+    }
+
+    LaunchedEffect(positionMs, durationMs, isDragging) {
+        if (!isDragging) {
+            progress = if (durationMs > 0L) positionMs.toFloat() / durationMs.toFloat() else 0f
+        }
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Slider(
+            value = progress.coerceIn(0f, 1f),
+            onValueChange = {
+                isDragging = true
+                progress = it
+            },
+            onValueChangeFinished = {
+                isDragging = false
+                if (durationMs > 0L) {
+                    onSeek((progress.coerceIn(0f, 1f) * durationMs.toFloat()).roundToLong())
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = Color(0xFF7C3AED),
+                inactiveTrackColor = Color.White.copy(alpha = 0.18f)
+            )
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = formatDuration(positionMs.coerceAtLeast(0L)),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.72f)
+            )
+            Text(
+                text = formatDuration(durationMs.coerceAtLeast(0L)),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.72f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TransportControls(
+    isPlaying: Boolean,
+    onPrevious: () -> Unit,
+    onTogglePlay: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilledTonalIconButton(onClick = onPrevious) {
+            Icon(
+                imageVector = Icons.Filled.SkipPrevious,
+                contentDescription = "Anterior"
+            )
+        }
+        Spacer(modifier = Modifier.width(18.dp))
+        FilledTonalIconButton(onClick = onTogglePlay) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = if (isPlaying) "Pausar" else "Reproducir"
+            )
+        }
+        Spacer(modifier = Modifier.width(18.dp))
+        FilledTonalIconButton(onClick = onNext) {
+            Icon(
+                imageVector = Icons.Filled.SkipNext,
+                contentDescription = "Siguiente"
+            )
         }
     }
 }

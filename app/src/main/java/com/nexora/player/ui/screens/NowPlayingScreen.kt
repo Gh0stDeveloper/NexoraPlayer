@@ -19,6 +19,6 @@ fun NowPlayingScreen(
 
     when (current?.kind) {
         MediaKind.VIDEO -> VideoPlayerScreen(modifier.fillMaxSize(), current, onClose)
-        MediaKind.AUDIO, null -> AudioPlayerScreen(modifier.fillMaxSize(), current)
+        MediaKind.AUDIO, null -> AudioPlayerScreen(modifier.fillMaxSize(), current, onClose)
     }
 }
