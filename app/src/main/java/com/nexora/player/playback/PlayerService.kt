@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.os.Build
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -230,11 +231,11 @@ class PlayerService : MediaSessionService() {
         views.setViewVisibility(R.id.notification_album, if (albumLabel.isBlank()) View.GONE else View.VISIBLE)
 
         if (expanded) {
-            views.setInt(R.id.notification_title, "setTextSize", 16)
-            views.setInt(R.id.notification_artist, "setTextSize", 13)
+            views.setTextViewTextSize(R.id.notification_title, TypedValue.COMPLEX_UNIT_SP, 16f)
+            views.setTextViewTextSize(R.id.notification_artist, TypedValue.COMPLEX_UNIT_SP, 13f)
         } else {
-            views.setInt(R.id.notification_title, "setTextSize", 15)
-            views.setInt(R.id.notification_artist, "setTextSize", 12)
+            views.setTextViewTextSize(R.id.notification_title, TypedValue.COMPLEX_UNIT_SP, 15f)
+            views.setTextViewTextSize(R.id.notification_artist, TypedValue.COMPLEX_UNIT_SP, 12f)
         }
     }
 
