@@ -1,12 +1,11 @@
 package com.nexora.player.ui.screens
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import android.app.Activity
 import android.os.Build
 import android.provider.MediaStore
-import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,17 +15,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -47,12 +45,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
 import com.nexora.player.R
 import com.nexora.player.data.local.PlaylistEntity
 import com.nexora.player.data.model.MediaEntry
@@ -80,6 +78,7 @@ fun MusicScreen(
     var deleteCandidate by remember { mutableStateOf<MediaEntry?>(null) }
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+
     val deleteLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -96,12 +95,17 @@ fun MusicScreen(
             modifier = Modifier.padding(12.dp)
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(stringResource(R.string.music_library_title), style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    stringResource(R.string.music_library_description),
+                    text = stringResource(R.string.music_library_title),
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Text(
+                    text = stringResource(R.string.music_library_description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -131,13 +135,18 @@ fun MusicScreen(
 
         if (items.isEmpty()) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(stringResource(R.string.no_visible_music), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = stringResource(R.string.no_visible_music),
+                    style = MaterialTheme.typography.titleMedium
+                )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    stringResource(R.string.hidden_tracks_restore_hint),
+                    text = stringResource(R.string.hidden_tracks_restore_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -184,6 +193,7 @@ fun MusicScreen(
                             modifier = Modifier.padding(16.dp)
                         )
                     }
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = item.title,
@@ -221,11 +231,16 @@ fun MusicScreen(
                         },
                         leadingIcon = {
                             Icon(
-                                imageVector = if (favorites.contains(item.id)) androidx.compose.material.icons.Icons.Filled.Favorite else androidx.compose.material.icons.Icons.Filled.FavoriteBorder,
+                                imageVector = if (favorites.contains(item.id)) {
+                                    Icons.Filled.Favorite
+                                } else {
+                                    Icons.Filled.FavoriteBorder
+                                },
                                 contentDescription = null
                             )
                         }
                     )
+
                     AssistChip(
                         onClick = {
                             onHideFromLibrary(item)
@@ -233,7 +248,10 @@ fun MusicScreen(
                         },
                         label = { Text(stringResource(R.string.hide_from_library)) },
                         leadingIcon = {
-                            Icon(imageVector = Icons.Filled.VisibilityOff, contentDescription = null)
+                            Icon(
+                                imageVector = Icons.Filled.VisibilityOff,
+                                contentDescription = null
+                            )
                         }
                     )
                 }
@@ -258,7 +276,7 @@ fun MusicScreen(
                             supportingContent = { Text(stringResource(R.string.add_to_playlist)) },
                             leadingContent = {
                                 Icon(
-                                    imageVector = PlaylistPlay,
+                                    imageVector = QueueMusic,
                                     contentDescription = null
                                 )
                             },
@@ -267,7 +285,10 @@ fun MusicScreen(
                                     onAddToPlaylist(playlist, item)
                                     selectedItem = null
                                 }) {
-                                    Icon(imageVector = Icons.Filled.PlaylistAdd, contentDescription = null)
+                                    Icon(
+                                        imageVector = Icons.Filled.PlaylistAdd,
+                                        contentDescription = null
+                                    )
                                 }
                             }
                         )
@@ -286,7 +307,10 @@ fun MusicScreen(
                         )
                     },
                     leadingContent = {
-                        Icon(imageVector = Icons.Filled.Info, contentDescription = null)
+                        Icon(
+                            imageVector = Icons.Filled.Info,
+                            contentDescription = null
+                        )
                     }
                 )
 
@@ -345,7 +369,10 @@ fun MusicScreen(
                 TextButton(onClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         runCatching {
-                            val request = MediaStore.createDeleteRequest(context.contentResolver, listOf(item.uri))
+                            val request = MediaStore.createDeleteRequest(
+                                context.contentResolver,
+                                listOf(item.uri)
+                            )
                             deleteLauncher.launch(
                                 IntentSenderRequest.Builder(request.intentSender).build()
                             )

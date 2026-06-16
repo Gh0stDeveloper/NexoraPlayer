@@ -86,6 +86,7 @@ class MainActivity : AppCompatActivity() {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
 
             var showNowPlaying by rememberSaveable { mutableStateOf(false) }
+            var searchQuery by rememberSaveable { mutableStateOf("") }
             var searchExpanded by rememberSaveable { mutableStateOf(false) }
             var lastAutoOpenedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
             var selectedPlaylistId by rememberSaveable { mutableStateOf<Long?>(null) }
