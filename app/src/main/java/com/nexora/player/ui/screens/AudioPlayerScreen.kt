@@ -5,7 +5,6 @@ import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
-import android.media.audiofx.AudioEffect
 import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.ComponentActivity
@@ -150,6 +149,7 @@ fun AudioPlayerScreen(
     var showLyricsEditor by rememberSaveable(current?.id) { mutableStateOf(false) }
     var showQueueSheet by rememberSaveable(current?.id) { mutableStateOf(false) }
     var showDetailsSheet by rememberSaveable(current?.id) { mutableStateOf(false) }
+    var showEqualizerSheet by rememberSaveable(current?.id) { mutableStateOf(false) }
     var artworkStyle by rememberSaveable(current?.id) { mutableStateOf(ArtworkStyle.DISC) }
 
     var positionMs by remember { mutableLongStateOf(0L) }
@@ -282,7 +282,7 @@ fun AudioPlayerScreen(
                         toggleFavorite(context, current)
                     }
                 },
-                onOpenEqualizer = { openEqualizer(context, player.audioSessionId) },
+                onOpenEqualizer = { showEqualizerSheet = true },
                 onChangeArtworkStyle = {
                     artworkStyle = artworkStyle.next()
                 }
@@ -403,7 +403,14 @@ fun AudioPlayerScreen(
             currentIndex = currentIndex,
             onDismiss = { showQueueSheet = false },
             onJumpToQueueItem = { PlayerEngine.jumpTo(context, it) },
-            onOpenEqualizer = { openEqualizer(context, player.audioSessionId) }
+            onOpenEqualizer = { showEqualizerSheet = true }
+        )
+    }
+
+    if (showEqualizerSheet && current != null) {
+        EqualizerSheet(
+            audioSessionId = player.audioSessionId,
+            onDismiss = { showEqualizerSheet = false }
         )
     }
 
@@ -414,7 +421,7 @@ fun AudioPlayerScreen(
             currentIndex = currentIndex,
             onDismiss = { showDetailsSheet = false },
             onShowQueue = { showQueueSheet = true },
-            onOpenEqualizer = { openEqualizer(context, player.audioSessionId) }
+            onOpenEqualizer = { showEqualizerSheet = true }
         )
     }
 
@@ -700,18 +707,6 @@ private fun QueueSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
         }
-    }
-}
-
-private fun openEqualizer(context: android.content.Context, audioSessionId: Int) {
-    runCatching {
-        val intent = android.content.Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
-            putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
-            putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-            putExtra(AudioEffect.EXTRA_AUDIO_SESSION, audioSessionId)
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
     }
 }
 
