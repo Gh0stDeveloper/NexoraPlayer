@@ -9,6 +9,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.PlaybackSnapshot
+import com.nexora.player.equalizer.EqualizerSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -140,10 +141,18 @@ object PlayerEngine {
         }
         player = null
         synchronized(queueLock) { queue = emptyList() }
+        EqualizerSessionManager.release()
         _snapshot.value = PlaybackSnapshot()
     }
 
     private fun updateSnapshot(player: Player) {
+        if (player is ExoPlayer) {
+            val sessionId = player.audioSessionId
+            if (sessionId > 0) {
+                EqualizerSessionManager.attach(sessionId)
+            }
+        }
+
         val currentQueue = synchronized(queueLock) { queue.toList() }
         _snapshot.value = PlaybackSnapshot(
             queue = currentQueue,

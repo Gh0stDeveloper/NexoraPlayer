@@ -16,6 +16,7 @@ data class EqualizerTemplate(
     val id: String,
     val name: String,
     val description: String,
+    val icon: String,
     val curve: List<Float>
 )
 
@@ -24,6 +25,7 @@ object NexoraEqualizerTemplates {
         id = "flat",
         name = "Plano",
         description = "Respuesta neutra para referencia.",
+        icon = "◻",
         curve = listOf(0.50f, 0.50f, 0.50f, 0.50f, 0.50f)
     )
 
@@ -31,6 +33,7 @@ object NexoraEqualizerTemplates {
         id = "bass_boost",
         name = "Bajos",
         description = "Refuerza el impacto de graves y subgraves.",
+        icon = "🎸",
         curve = listOf(0.88f, 0.78f, 0.54f, 0.38f, 0.30f)
     )
 
@@ -38,6 +41,7 @@ object NexoraEqualizerTemplates {
         id = "warm",
         name = "Cálido",
         description = "Suaviza agudos y redondea medios.",
+        icon = "🔥",
         curve = listOf(0.72f, 0.68f, 0.58f, 0.48f, 0.42f)
     )
 
@@ -45,20 +49,23 @@ object NexoraEqualizerTemplates {
         id = "vocal",
         name = "Voces",
         description = "Destaca la zona media para voz y diálogo.",
+        icon = "🎤",
         curve = listOf(0.42f, 0.58f, 0.72f, 0.62f, 0.46f)
     )
 
-    val treble = EqualizerTemplate(
-        id = "treble",
-        name = "Agudos",
-        description = "Aporta brillo y detalle a la mezcla.",
-        curve = listOf(0.34f, 0.42f, 0.56f, 0.74f, 0.90f)
+    val piano = EqualizerTemplate(
+        id = "piano",
+        name = "Piano",
+        description = "Más brillo y presencia para instrumentos.",
+        icon = "🎹",
+        curve = listOf(0.34f, 0.46f, 0.58f, 0.76f, 0.92f)
     )
 
     val party = EqualizerTemplate(
         id = "party",
         name = "Fiesta",
         description = "Más presencia en extremos y más energía.",
+        icon = "🎧",
         curve = listOf(0.80f, 0.68f, 0.54f, 0.70f, 0.86f)
     )
 
@@ -66,6 +73,7 @@ object NexoraEqualizerTemplates {
         id = "podcast",
         name = "Podcast",
         description = "Reduce ruido musical y prioriza claridad.",
+        icon = "🎙️",
         curve = listOf(0.30f, 0.48f, 0.78f, 0.66f, 0.40f)
     )
 
@@ -74,7 +82,7 @@ object NexoraEqualizerTemplates {
         bassBoost,
         warm,
         vocal,
-        treble,
+        piano,
         party,
         podcast
     )

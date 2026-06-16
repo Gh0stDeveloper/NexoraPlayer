@@ -100,6 +100,10 @@ import androidx.compose.ui.unit.sp
 import com.nexora.player.R
 import com.nexora.player.data.local.FavoriteMediaEntity
 import com.nexora.player.data.local.NexoraDatabase
+import com.nexora.player.equalizer.EqualizerPreferencesRepository
+import com.nexora.player.equalizer.EqualizerSessionManager
+import com.nexora.player.equalizer.EqualizerSettings
+import com.nexora.player.equalizer.NexoraEqualizerTemplates
 import com.nexora.player.data.lyrics.LrcParser
 import com.nexora.player.data.lyrics.Lyrics
 import com.nexora.player.data.lyrics.LyricsRepository
@@ -143,6 +147,16 @@ fun AudioPlayerScreen(
     val favorites by NexoraDatabase.get(context).favoritesDao().observeAll().collectAsState(initial = emptyList())
 
     val lyricsRepository = remember(context) { LyricsRepository(context, NexoraDatabase.get(context)) }
+    val equalizerRepository = remember(context) { EqualizerPreferencesRepository(context) }
+    val equalizerSettings by equalizerRepository.settings.collectAsState(initial = EqualizerSettings())
+    val equalizerPresetLabel = remember(equalizerSettings.templateId, equalizerSettings.customName) {
+        if (equalizerSettings.templateId == com.nexora.player.equalizer.NEXORA_CUSTOM_TEMPLATE_ID) {
+            equalizerSettings.customName.trim().ifBlank { "Personalizado" }
+        } else {
+            NexoraEqualizerTemplates.resolve(equalizerSettings.templateId).name
+        }
+    }
+
     var lyrics by remember { mutableStateOf<Lyrics?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     var allowOnlineLyrics by rememberSaveable(current?.id) { mutableStateOf(false) }
@@ -178,6 +192,12 @@ fun AudioPlayerScreen(
     val isFavorite = remember(current?.id, current?.kind, favorites) {
         val item = current
         item != null && favorites.any { fav -> fav.mediaId == item.id && fav.mediaKind == item.kind.name }
+    }
+
+    LaunchedEffect(player.audioSessionId, equalizerSettings) {
+        if (player.audioSessionId > 0) {
+            EqualizerSessionManager.sync(player.audioSessionId, equalizerSettings)
+        }
     }
 
     val queue = snapshot.queue
@@ -338,6 +358,11 @@ fun AudioPlayerScreen(
                     AssistChip(onClick = {}, label = { Text(formatDuration(current.durationMs)) })
                     AssistChip(onClick = {}, label = { Text("${currentIndex + 1}/${queue.size.coerceAtLeast(1)}") })
                     AssistChip(onClick = {}, label = { Text(if (snapshot.isPlaying) "En reproducción" else "En pausa") })
+                    AssistChip(
+                        onClick = { showEqualizerSheet = true },
+                        label = { Text(if (equalizerSettings.enabled) "EQ: ${equalizerPresetLabel}" else "EQ desactivado") },
+                        leadingIcon = { Icon(imageVector = Icons.Filled.Equalizer, contentDescription = null) }
+                    )
                     AssistChip(
                         onClick = {
                             scope.launch { toggleFavorite(context, current) }

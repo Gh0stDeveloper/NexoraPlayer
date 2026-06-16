@@ -21,6 +21,9 @@ import androidx.media3.session.MediaStyleNotificationHelper
 import com.nexora.player.MainActivity
 import com.nexora.player.R
 import com.nexora.player.data.local.NexoraDatabase
+import com.nexora.player.equalizer.EqualizerPreferencesRepository
+import com.nexora.player.equalizer.EqualizerSessionManager
+import com.nexora.player.equalizer.EqualizerSettings
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.MediaKind
 import com.nexora.player.data.model.PlaybackSnapshot
@@ -49,9 +52,11 @@ class PlayerService : MediaSessionService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val database by lazy { NexoraDatabase.get(applicationContext) }
+    private val equalizerRepository by lazy { EqualizerPreferencesRepository(applicationContext) }
 
     private var mediaSession: MediaSession? = null
     private var favoriteIds: Set<Long> = emptySet()
+    private var equalizerSettings: EqualizerSettings = EqualizerSettings()
     private var progressTickerJob: Job? = null
 
     override fun onCreate() {
@@ -59,6 +64,7 @@ class PlayerService : MediaSessionService() {
         createChannel()
         setupMediaSession()
         observeFavorites()
+        observeEqualizer()
         observePlayback()
     }
 
@@ -95,6 +101,7 @@ class PlayerService : MediaSessionService() {
 
     private fun setupMediaSession() {
         val player = PlayerEngine.get(this)
+        EqualizerSessionManager.attach(player.audioSessionId)
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(contentIntent())
             .build()
@@ -105,6 +112,15 @@ class PlayerService : MediaSessionService() {
             database.favoritesDao().observeAll().collectLatest { favorites ->
                 favoriteIds = favorites.map { it.mediaId }.toSet()
                 refreshNotification(PlayerEngine.snapshot.value)
+            }
+        }
+    }
+
+    private fun observeEqualizer() {
+        serviceScope.launch {
+            equalizerRepository.settings.collectLatest { settings ->
+                equalizerSettings = settings
+                EqualizerSessionManager.applySettings(settings)
             }
         }
     }
@@ -130,6 +146,11 @@ class PlayerService : MediaSessionService() {
 
         try {
             val player = PlayerEngine.get(this)
+            val sessionId = player.audioSessionId
+            if (sessionId > 0) {
+                EqualizerSessionManager.attach(sessionId)
+                EqualizerSessionManager.applySettings(equalizerSettings)
+            }
             val notification = buildNotification(
                 snapshot = snapshot,
                 current = current,
