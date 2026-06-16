@@ -54,7 +54,6 @@ import com.nexora.player.data.model.AppThemeMode
 import com.nexora.player.data.model.MediaKind
 import com.nexora.player.ui.components.BottomPlayerBar
 import com.nexora.player.ui.components.GreetingBanner
-import com.nexora.player.ui.components.SearchField
 import com.nexora.player.ui.screens.FavoritesScreen
 import com.nexora.player.ui.screens.HistoryScreen
 import com.nexora.player.ui.screens.MusicScreen
@@ -129,16 +128,12 @@ class MainActivity : AppCompatActivity() {
                                 .padding(horizontal = 10.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            SearchField(
+                            GreetingBanner(
+                                greeting = greeting,
                                 query = searchQuery,
                                 expanded = searchExpanded,
                                 onExpandedChange = { searchExpanded = it },
                                 onQueryChange = { searchQuery = it },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            
-                            GreetingBanner(
-                                greeting = greeting,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
