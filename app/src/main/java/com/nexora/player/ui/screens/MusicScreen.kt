@@ -258,7 +258,7 @@ fun MusicScreen(
                             supportingContent = { Text(stringResource(R.string.add_to_playlist)) },
                             leadingContent = {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.filled.PlaylistPlay,
+                                    imageVector = PlaylistPlay
                                     contentDescription = null
                                 )
                             },
@@ -281,7 +281,7 @@ fun MusicScreen(
                             text = listOfNotNull(
                                 item.artist.takeIf { it.isNotBlank() },
                                 item.album.takeIf { it.isNotBlank() },
-                                item.folder.takeIf { it.isNotBlank() }
+                                item.folder?.takeIf { it.isNotBlank() }
                             ).joinToString(" • ").ifBlank { "Sin metadatos adicionales" }
                         )
                     },

@@ -309,9 +309,10 @@ private fun QueuePreview(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
-                imageVector = QueueMusic,
+                imageVector = Icons.Filled.QueueMusic,
                 contentDescription = null
             )
+            
             Spacer(modifier = Modifier.width(8.dp))
             Text("Mostrar lista de reproducción")
         }
