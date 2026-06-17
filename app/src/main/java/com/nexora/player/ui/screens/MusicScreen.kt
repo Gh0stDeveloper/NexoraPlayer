@@ -377,7 +377,6 @@ fun MusicScreen(
                                 IntentSenderRequest.Builder(request.intentSender).build()
                             )
                         }.onFailure {
-                            onDeleteFromLibrary(item)
                             deleteCandidate = null
                             selectedItem = null
                         }

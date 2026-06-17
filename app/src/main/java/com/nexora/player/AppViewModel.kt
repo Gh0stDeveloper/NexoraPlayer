@@ -3,19 +3,33 @@ package com.nexora.player
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexora.player.data.local.*
-import com.nexora.player.data.model.*
+import com.nexora.player.data.local.FavoriteMediaEntity
+import com.nexora.player.data.local.LyricsEntity
+import com.nexora.player.data.local.NexoraDatabase
+import com.nexora.player.data.local.OnlineSavedTrackEntity
+import com.nexora.player.data.local.PlaybackHistoryEntity
+import com.nexora.player.data.local.PlaylistEntity
+import com.nexora.player.data.local.PlaylistItemEntity
+import com.nexora.player.data.model.AppDestination
+import com.nexora.player.data.model.AppThemeMode
+import com.nexora.player.data.model.MediaEntry
+import com.nexora.player.data.model.MediaKind
+import com.nexora.player.data.model.SortMode
+import com.nexora.player.data.online.OnlineMusicRepository
+import com.nexora.player.data.online.OnlineTrack
 import com.nexora.player.data.preferences.AppPreferences
 import com.nexora.player.data.preferences.PreferencesRepository
 import com.nexora.player.data.repository.MediaStoreRepository
 import com.nexora.player.playback.PlayerEngine
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 data class AppUiState(
@@ -32,6 +46,10 @@ data class AppUiState(
     val favorites: List<FavoriteMediaEntity> = emptyList(),
     val playlists: List<PlaylistEntity> = emptyList(),
     val history: List<PlaybackHistoryEntity> = emptyList(),
+    val onlineSavedTracks: List<OnlineSavedTrackEntity> = emptyList(),
+    val onlineTracks: List<OnlineTrack> = emptyList(),
+    val onlineLoading: Boolean = false,
+    val onlineError: String? = null,
     val preferences: AppPreferences = AppPreferences()
 )
 
@@ -40,10 +58,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val context = application.applicationContext
     private val mediaRepository = MediaStoreRepository(context)
     private val preferencesRepository = PreferencesRepository(context)
+    private val onlineRepository = OnlineMusicRepository()
     private val database = NexoraDatabase.get(context)
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
+
+    private var onlineSearchJob: Job? = null
 
     init {
         observePlayback()
@@ -75,6 +96,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     preferences = prefs
                 )
                 refreshLibrary()
+                refreshOnlineResultsIfNeeded()
             }
         }
     }
@@ -84,14 +106,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             combine(
                 database.favoritesDao().observeAll(),
                 database.playlistsDao().observePlaylists(),
-                database.historyDao().observeRecent()
-            ) { favorites, playlists, history ->
-                Triple(favorites, playlists, history)
-            }.collect { (favorites, playlists, history) ->
+                database.historyDao().observeRecent(),
+                database.onlineSavedTracksDao().observeAll()
+            ) { favorites, playlists, history, onlineSaved ->
+                Quadruple(favorites, playlists, history, onlineSaved)
+            }.collect { (favorites, playlists, history, onlineSaved) ->
                 _uiState.value = _uiState.value.copy(
                     favorites = favorites,
                     playlists = playlists,
-                    history = history
+                    history = history,
+                    onlineSavedTracks = onlineSaved
                 )
             }
         }
@@ -114,6 +138,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSearch(query: String) {
         _uiState.value = _uiState.value.copy(search = query)
+        scheduleOnlineSearch(query)
     }
 
     fun setAudioSort(sortMode: SortMode) {
@@ -134,6 +159,59 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setDynamicColor(enabled) }
+    }
+
+    fun setOnlineMusicSearchEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setOnlineMusicSearchEnabled(enabled) }
+        if (!enabled) {
+            onlineSearchJob?.cancel()
+            _uiState.value = _uiState.value.copy(
+                onlineTracks = emptyList(),
+                onlineLoading = false,
+                onlineError = null
+            )
+        } else {
+            refreshOnlineResultsIfNeeded()
+        }
+    }
+
+    private fun scheduleOnlineSearch(query: String) {
+        onlineSearchJob?.cancel()
+        if (query.isBlank() || !_uiState.value.preferences.onlineMusicSearchEnabled) {
+            _uiState.value = _uiState.value.copy(
+                onlineTracks = emptyList(),
+                onlineLoading = false,
+                onlineError = null
+            )
+            return
+        }
+
+        onlineSearchJob = viewModelScope.launch {
+            delay(250)
+            _uiState.value = _uiState.value.copy(onlineLoading = true, onlineError = null)
+            val results = runCatching { onlineRepository.search(query, limit = 20) }
+                .getOrElse { throwable ->
+                    _uiState.value = _uiState.value.copy(
+                        onlineLoading = false,
+                        onlineTracks = emptyList(),
+                        onlineError = throwable.message ?: "Online search failed"
+                    )
+                    return@launch
+                }
+
+            _uiState.value = _uiState.value.copy(
+                onlineLoading = false,
+                onlineTracks = results,
+                onlineError = null
+            )
+        }
+    }
+
+    private fun refreshOnlineResultsIfNeeded() {
+        val query = _uiState.value.search
+        if (query.isNotBlank() && _uiState.value.preferences.onlineMusicSearchEnabled) {
+            scheduleOnlineSearch(query)
+        }
     }
 
     fun playQueue(items: List<MediaEntry>, startIndex: Int = 0) {
@@ -272,7 +350,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-
     fun playlistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> {
         return database.playlistsDao().observeItems(playlistId)
     }
@@ -296,6 +373,44 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             play(selected)
         }
+    }
+
+    fun playOnlineQueue(tracks: List<OnlineTrack>, track: OnlineTrack) {
+        val queue = tracks.map { it.toMediaEntry() }
+        val startIndex = queue.indexOfFirst { it.id == track.stableMediaId }
+        if (startIndex >= 0) {
+            playQueue(queue, startIndex)
+        } else {
+            play(track.toMediaEntry())
+        }
+    }
+
+    fun toggleSavedOnlineTrack(track: OnlineTrack) {
+        viewModelScope.launch {
+            val exists = database.onlineSavedTracksDao().isSaved(track.providerId, track.sourceId)
+            if (exists) {
+                database.onlineSavedTracksDao().delete(track.providerId, track.sourceId)
+            } else {
+                database.onlineSavedTracksDao().upsert(
+                    OnlineSavedTrackEntity(
+                        providerId = track.providerId,
+                        sourceId = track.sourceId,
+                        title = track.title,
+                        artist = track.artist,
+                        album = track.album,
+                        artworkUrl = track.artworkUrl,
+                        streamUrl = track.streamUrl,
+                        downloadUrl = track.downloadUrl,
+                        durationMs = track.durationMs,
+                        sourcePageUrl = track.sourcePageUrl
+                    )
+                )
+            }
+        }
+    }
+
+    fun isOnlineTrackSaved(track: OnlineTrack): Boolean {
+        return _uiState.value.onlineSavedTracks.any { it.providerId == track.providerId && it.sourceId == track.sourceId }
     }
 
     @Deprecated("Use playFavoriteQueue for favorites section playback")
@@ -349,6 +464,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    private fun OnlineSavedTrackEntity.toOnlineTrack(): OnlineTrack = OnlineTrack(
+        providerId = providerId,
+        providerLabel = providerId.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
+        sourceId = sourceId,
+        title = title,
+        artist = artist,
+        album = album,
+        artworkUrl = artworkUrl,
+        streamUrl = streamUrl,
+        downloadUrl = downloadUrl,
+        durationMs = durationMs,
+        sourcePageUrl = sourcePageUrl
+    )
+
     fun filteredAudio(): List<MediaEntry> {
         val q = _uiState.value.search.trim().lowercase()
         return _uiState.value.audio.filter {
@@ -365,3 +494,5 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun favoriteIds(): Set<Long> = _uiState.value.favorites.map { it.mediaId }.toSet()
 }
+
+private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

@@ -39,6 +39,23 @@ data class PlaylistItemEntity(
     val addedAt: Long = System.currentTimeMillis()
 )
 
+
+@Entity(tableName = "online_saved_tracks", indices = [androidx.room.Index(value = ["providerId", "sourceId"], unique = true)])
+data class OnlineSavedTrackEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
+    val providerId: String,
+    val sourceId: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val artworkUrl: String?,
+    val streamUrl: String,
+    val downloadUrl: String?,
+    val durationMs: Long,
+    val sourcePageUrl: String?,
+    val savedAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "playback_history")
 data class PlaybackHistoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,

@@ -11,15 +11,17 @@ import androidx.room.RoomDatabase
         PlaylistEntity::class,
         PlaylistItemEntity::class,
         PlaybackHistoryEntity::class,
+        OnlineSavedTrackEntity::class,
         LyricsEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class NexoraDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
     abstract fun playlistsDao(): PlaylistsDao
     abstract fun historyDao(): HistoryDao
+    abstract fun onlineSavedTracksDao(): OnlineSavedTracksDao
     abstract fun lyricsDao(): LyricsDao
 
     companion object {
@@ -47,6 +49,32 @@ abstract class NexoraDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `online_saved_tracks` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `providerId` TEXT NOT NULL,
+                        `sourceId` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `artist` TEXT NOT NULL,
+                        `album` TEXT NOT NULL,
+                        `artworkUrl` TEXT,
+                        `streamUrl` TEXT NOT NULL,
+                        `downloadUrl` TEXT,
+                        `durationMs` INTEGER NOT NULL,
+                        `sourcePageUrl` TEXT,
+                        `savedAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_online_saved_tracks_providerId_sourceId` ON `online_saved_tracks` (`providerId`, `sourceId`)"
+                )
+            }
+        }
+
         fun get(context: Context): NexoraDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -54,7 +82,7 @@ abstract class NexoraDatabase : RoomDatabase() {
                     NexoraDatabase::class.java,
                     "nexora.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

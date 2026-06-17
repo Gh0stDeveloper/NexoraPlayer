@@ -66,6 +66,22 @@ interface HistoryDao {
     suspend fun deleteByMediaId(mediaId: Long)
 }
 
+
+@Dao
+interface OnlineSavedTracksDao {
+    @Query("SELECT * FROM online_saved_tracks ORDER BY savedAt DESC")
+    fun observeAll(): Flow<List<OnlineSavedTrackEntity>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM online_saved_tracks WHERE providerId = :providerId AND sourceId = :sourceId)")
+    suspend fun isSaved(providerId: String, sourceId: String): Boolean
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: OnlineSavedTrackEntity): Long
+
+    @Query("DELETE FROM online_saved_tracks WHERE providerId = :providerId AND sourceId = :sourceId")
+    suspend fun delete(providerId: String, sourceId: String)
+}
+
 @Dao
 interface LyricsDao {
     @Query("SELECT * FROM lyrics WHERE mediaId = :mediaId LIMIT 1")

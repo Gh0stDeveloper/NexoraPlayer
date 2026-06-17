@@ -23,6 +23,7 @@ class PreferencesRepository(private val context: Context) {
         val LAST_DESTINATION = stringPreferencesKey("last_destination")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val ONLINE_MUSIC_SEARCH_ENABLED = booleanPreferencesKey("online_music_search_enabled")
         val HIDDEN_AUDIO_IDS = stringSetPreferencesKey("hidden_audio_ids")
     }
 
@@ -33,6 +34,7 @@ class PreferencesRepository(private val context: Context) {
             lastDestination = prefs.stringValue(Keys.LAST_DESTINATION, AppDestination.MUSIC.name).toDestination(),
             themeMode = prefs.stringValue(Keys.THEME_MODE, AppThemeMode.SYSTEM.name).toThemeMode(),
             dynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
+            onlineMusicSearchEnabled = prefs[Keys.ONLINE_MUSIC_SEARCH_ENABLED] ?: true,
             hiddenAudioIds = prefs.stringSetValue(Keys.HIDDEN_AUDIO_IDS, emptySet())
                 .mapNotNull { it.toLongOrNull() }
                 .toSet()
@@ -57,6 +59,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setDynamicColor(enabled: Boolean) {
         context.dataStore.edit { it[Keys.DYNAMIC_COLOR] = enabled }
+    }
+
+    suspend fun setOnlineMusicSearchEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ONLINE_MUSIC_SEARCH_ENABLED] = enabled }
     }
 
     suspend fun setHiddenAudioIds(ids: Set<Long>) {

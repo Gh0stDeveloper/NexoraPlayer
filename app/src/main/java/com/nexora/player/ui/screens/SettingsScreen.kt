@@ -44,9 +44,11 @@ fun SettingsScreen(
     themeMode: AppThemeMode,
     dynamicColor: Boolean,
     hiddenAudioCount: Int,
+    onlineMusicSearchEnabled: Boolean,
     currentLanguage: AppLanguage,
     onThemeChange: (AppThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
+    onOnlineMusicSearchChange: (Boolean) -> Unit,
     onLanguageChange: (AppLanguage) -> Unit,
     onRestoreHiddenAudio: () -> Unit
 ) {
@@ -129,6 +131,38 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                Text(stringResource(R.string.settings_online_music_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.settings_online_music_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth(0.8f)) {
+                        Text(stringResource(R.string.settings_online_music_switch_title))
+                        Text(
+                            if (onlineMusicSearchEnabled) stringResource(R.string.settings_online_music_on)
+                            else stringResource(R.string.settings_online_music_off),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = onlineMusicSearchEnabled,
+                        onCheckedChange = onOnlineMusicSearchChange
+                    )
+                }
+            }
+        }
+
+        ElevatedCard {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Text(stringResource(R.string.settings_library_privacy), style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(R.string.settings_hidden_audio_count, hiddenAudioCount),
@@ -154,14 +188,14 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(stringResource(R.string.settings_developer), style = MaterialTheme.typography.titleMedium)
-                Text("Ghost Developer · CHICO-CP")
+                Text("Ghost Developer")
                 Text(
                     stringResource(R.string.settings_free_notice),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(
-                        onClick = { uriHandler.openUri("https://github.com/CHICO-CP") },
+                        onClick = { uriHandler.openUri("https://github.com/Gh0stDeveloper") },
                         label = { Text(stringResource(R.string.settings_github)) },
                         leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.Code, contentDescription = null) }
                     )

@@ -10,5 +10,6 @@ data class AppPreferences(
     val lastDestination: AppDestination = AppDestination.MUSIC,
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
+    val onlineMusicSearchEnabled: Boolean = true,
     val hiddenAudioIds: Set<Long> = emptySet()
 )
