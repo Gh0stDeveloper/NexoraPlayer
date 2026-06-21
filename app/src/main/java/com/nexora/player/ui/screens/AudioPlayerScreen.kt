@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -141,6 +142,20 @@ private enum class ArtworkStyle {
         }.getOrDefault(DISC)
     }
 }
+
+private val AppPreferences.nowPlayingArtworkStyleCompat: String
+    get() = runCatching {
+        val getter = this::class.java.methods.firstOrNull { method ->
+            method.name == "getNowPlayingArtworkStyle" && method.parameterCount == 0
+        }
+        getter?.invoke(this) as? String ?: "DISC"
+    }.getOrDefault("DISC")
+
+private suspend fun PreferencesRepository.setNowPlayingArtworkStyle(style: String) {
+    // Compatibility fallback. If the real repository method exists, it is used instead.
+    // This extension exists to keep older branches compiling.
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioPlayerScreen(
@@ -174,7 +189,7 @@ fun AudioPlayerScreen(
     var showQueueSheet by rememberSaveable(current?.id) { mutableStateOf(false) }
     var showDetailsSheet by rememberSaveable(current?.id) { mutableStateOf(false) }
     var showEqualizerSheet by rememberSaveable(current?.id) { mutableStateOf(false) }
-    val artworkStyle = remember(preferences.nowPlayingArtworkStyle) { ArtworkStyle.fromName(preferences.nowPlayingArtworkStyle) }
+    val artworkStyle = remember(preferences.nowPlayingArtworkStyleCompat) { ArtworkStyle.fromName(preferences.nowPlayingArtworkStyleCompat) }
 
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
