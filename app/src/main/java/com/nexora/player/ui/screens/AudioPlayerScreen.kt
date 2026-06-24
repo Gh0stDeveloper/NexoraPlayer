@@ -516,7 +516,7 @@ fun AudioPlayerScreen(
 
     // ── Bottom sheets / dialogs ──
 
-    if (showPlaylistSheet) {
+    if (showPlaylistSheet && current != null) {
         PlaylistSheet(
             current          = current,
             queue            = queue,
