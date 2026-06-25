@@ -59,7 +59,7 @@ class OnlineMusicRepository() {
                 add(
                     OnlineTrack(
                         providerId = "itunes",
-                        providerLabel = "iTunes",
+                        providerLabel = "NexoraPlayerAPI",
                         sourceId = trackId,
                         title = item.optString("trackName").ifBlank { "Untitled" },
                         artist = item.optString("artistName"),
@@ -100,7 +100,7 @@ class OnlineMusicRepository() {
                 add(
                     OnlineTrack(
                         providerId = "jamendo",
-                        providerLabel = "Jamendo",
+                        providerLabel = "NexoraPlayerAPI",
                         sourceId = sourceId,
                         title = item.optString("name").ifBlank { "Untitled" },
                         artist = item.optString("artist_name"),

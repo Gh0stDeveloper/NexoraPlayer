@@ -15,10 +15,10 @@ object OnlineMusicSources {
         val enabled: Boolean = true
     )
 
-    const val JAMENDO_CLIENT_ID = ""
+    const val JAMENDO_CLIENT_ID = "ae2cf85c"
 
     val providers: List<ProviderEntry> = listOf(
-        ProviderEntry(id = "itunes", label = "iTunes Search API", enabled = true),
-        ProviderEntry(id = "jamendo", label = "Jamendo", enabled = JAMENDO_CLIENT_ID.isNotBlank())
+        ProviderEntry(id = "jamendo", label = "Jamendo", enabled = JAMENDO_CLIENT_ID.isNotBlank()),
+        ProviderEntry(id = "itunes", label = "iTunes Search API", enabled = true)
     )
 }
