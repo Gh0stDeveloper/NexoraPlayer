@@ -33,8 +33,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.ArrowBack
@@ -55,6 +57,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -319,11 +322,11 @@ fun AudioPlayerScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 24.dp)
         ) {
 
-            // ── Top bar ──
+            // ── Top bar (fixed, no scroll) ──
+            Spacer(Modifier.height(20.dp))
             PlayerTopBar(
                 current      = current,
                 artworkStyle = artworkStyle,
@@ -335,17 +338,17 @@ fun AudioPlayerScreen(
                     uiPrefs.edit().putString(KEY_ARTWORK_STYLE, next.name).apply()
                 }
             )
+            Spacer(Modifier.height(12.dp))
 
-            // ── Center: artwork + controls ──
+            // ── Scrollable content ──
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.Center,
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(Modifier.height(8.dp))
 
+                // Artwork — bigger
                 ArtworkDisplay(
                     artwork   = artwork,
                     title     = current.title,
@@ -354,7 +357,18 @@ fun AudioPlayerScreen(
                     style     = artworkStyle
                 )
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(10.dp))
+
+                // Style selector chips
+                ArtworkStyleSelector(
+                    currentStyle = artworkStyle,
+                    onSelect     = { selected ->
+                        artworkStyle = selected
+                        uiPrefs.edit().putString(KEY_ARTWORK_STYLE, selected.name).apply()
+                    }
+                )
+
+                Spacer(Modifier.height(20.dp))
 
                 // ── Song info + favorite ──
                 Row(
@@ -387,8 +401,7 @@ fun AudioPlayerScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-
-                    // Heart icon — filled red if favorite, outlined if not
+                    // Heart
                     IconButton(
                         onClick  = { scope.launch { toggleFavorite(context, current) } },
                         modifier = Modifier.size(44.dp)
@@ -405,7 +418,7 @@ fun AudioPlayerScreen(
                     }
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(20.dp))
 
                 // ── Progress bar ──
                 PlaybackProgressSection(
@@ -423,30 +436,15 @@ fun AudioPlayerScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    // Playlist button
                     IconButton(onClick = { showPlaylistSheet = true }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
-                            contentDescription = "Playlist",
-                            tint     = Color.White.copy(alpha = 0.72f),
-                            modifier = Modifier.size(28.dp)
-                        )
+                        Icon(Icons.AutoMirrored.Filled.PlaylistPlay, "Playlist",
+                            tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(28.dp))
                     }
-
-                    // Skip previous
-                    IconButton(
-                        onClick  = { PlayerEngine.skipPrevious(context) },
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.SkipPrevious,
-                            contentDescription = "Anterior",
-                            tint     = Color.White,
-                            modifier = Modifier.size(36.dp)
-                        )
+                    IconButton(onClick = { PlayerEngine.skipPrevious(context) },
+                        modifier = Modifier.size(52.dp)) {
+                        Icon(Icons.Filled.SkipPrevious, "Anterior",
+                            tint = Color.White, modifier = Modifier.size(36.dp))
                     }
-
-                    // Play / Pause — big white circle (iPhone-style)
                     Surface(
                         onClick  = { PlayerEngine.togglePlayPause(context) },
                         shape    = CircleShape,
@@ -457,50 +455,40 @@ fun AudioPlayerScreen(
                             Icon(
                                 imageVector = if (snapshot.isPlaying) Icons.Filled.Pause
                                               else Icons.Filled.PlayArrow,
-                                contentDescription = if (snapshot.isPlaying) "Pausar" else "Reproducir",
+                                contentDescription = null,
                                 tint     = Color.Black,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
                     }
-
-                    // Skip next
-                    IconButton(
-                        onClick  = { PlayerEngine.skipNext(context) },
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.SkipNext,
-                            contentDescription = "Siguiente",
-                            tint     = Color.White,
-                            modifier = Modifier.size(36.dp)
-                        )
+                    IconButton(onClick = { PlayerEngine.skipNext(context) },
+                        modifier = Modifier.size(52.dp)) {
+                        Icon(Icons.Filled.SkipNext, "Siguiente",
+                            tint = Color.White, modifier = Modifier.size(36.dp))
                     }
-
-                    // Details
                     IconButton(onClick = { showDetailsSheet = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.Info,
-                            contentDescription = "Detalles",
-                            tint     = Color.White.copy(alpha = 0.72f),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Icon(Icons.Filled.Info, "Detalles",
+                            tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(22.dp))
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
-            }
+                Spacer(Modifier.height(28.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+                Spacer(Modifier.height(20.dp))
 
-            // ── Compact lyrics preview (bottom) ──
-            CompactLyricsCard(
-                lyrics         = lyrics,
-                lyricsLoading  = lyricsLoading,
-                positionMs     = positionMs,
-                onExpand       = { showLyricsSheet = true },
-                onSearchOnline = { allowOnlineLyrics = true },
-                onEdit         = { showLyricsEditor = true },
-                modifier       = Modifier.fillMaxWidth()
-            )
+                // ── Lyrics section (inline, scrollable with the rest) ──
+                InlineLyricsSection(
+                    lyrics         = lyrics,
+                    lyricsLoading  = lyricsLoading,
+                    positionMs     = positionMs,
+                    onSearchOnline = { allowOnlineLyrics = true },
+                    onEdit         = { showLyricsEditor = true },
+                    onExpand       = { showLyricsSheet = true },
+                    modifier       = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(48.dp))
+            }
         }
     }
 
@@ -651,8 +639,8 @@ private fun ArtworkDisplay(
         ArtworkStyle.SQUARE -> RoundedCornerShape(34.dp)
         ArtworkStyle.COVER  -> RoundedCornerShape(42.dp)
     }
-    val outerSize = when (style) { ArtworkStyle.DISC -> 310.dp; else -> 304.dp }
-    val innerSize = when (style) { ArtworkStyle.DISC -> 262.dp; else -> 260.dp }
+    val outerSize = when (style) { ArtworkStyle.DISC -> 340.dp; else -> 330.dp }
+    val innerSize = when (style) { ArtworkStyle.DISC -> 290.dp; else -> 284.dp }
 
     Box(
         contentAlignment = Alignment.Center,
@@ -780,6 +768,177 @@ private fun PlaybackProgressSection(
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White.copy(alpha = 0.60f)
             )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Artwork style selector chips
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun ArtworkStyleSelector(
+    currentStyle: ArtworkStyle,
+    onSelect: (ArtworkStyle) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment     = Alignment.CenterVertically
+    ) {
+        listOf(ArtworkStyle.DISC, ArtworkStyle.SQUARE, ArtworkStyle.COVER).forEach { style ->
+            FilterChip(
+                selected = currentStyle == style,
+                onClick  = { onSelect(style) },
+                label    = {
+                    Text(
+                        when (style) {
+                            ArtworkStyle.DISC   -> "Disco"
+                            ArtworkStyle.SQUARE -> "Cuadrado"
+                            ArtworkStyle.COVER  -> "Portada"
+                        }
+                    )
+                },
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Inline lyrics section — lives inside the scrollable column
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InlineLyricsSection(
+    lyrics: Lyrics?,
+    lyricsLoading: Boolean,
+    positionMs: Long,
+    onSearchOnline: () -> Unit,
+    onEdit: () -> Unit,
+    onExpand: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val lrcLines = remember(lyrics?.rawText) { parseLrcLines(lyrics?.rawText) }
+
+    val currentLineIndex = remember(lrcLines, positionMs) {
+        if (lrcLines.isEmpty()) -1
+        else {
+            val idx = lrcLines.indexOfLast { it.timestampMs <= positionMs }
+            if (idx < 0 && lrcLines.isNotEmpty()) 0 else idx
+        }
+    }
+
+    val displayLines = remember(lyrics?.rawText) {
+        lyrics?.rawText
+            ?.lines()
+            ?.map { it.replace(Regex("\\[.*?\\]"), "").trim() }
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
+    }
+
+    Column(modifier = modifier) {
+
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
+            Text(
+                text  = "Letra",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = Color.White.copy(alpha = 0.90f)
+            )
+            if (lyrics != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onEdit) {
+                        Text("Editar", color = Color.White.copy(alpha = 0.60f),
+                            style = MaterialTheme.typography.labelMedium)
+                    }
+                    IconButton(onClick = onExpand, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Filled.ExpandLess, "Ver completa",
+                            tint = Color.White.copy(alpha = 0.60f), modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        when {
+            lyricsLoading -> {
+                Text(
+                    text  = "Buscando letra...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.45f)
+                )
+            }
+
+            lyrics == null -> {
+                Text(
+                    text  = "Esta canción no tiene letra guardada.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.45f)
+                )
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        onClick = onSearchOnline,
+                        shape   = RoundedCornerShape(50),
+                        color   = Color(0xFF7C3AED).copy(alpha = 0.70f)
+                    ) {
+                        Text(
+                            text     = "Buscar en línea",
+                            style    = MaterialTheme.typography.labelLarge,
+                            color    = Color.White,
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
+                        )
+                    }
+                    Surface(
+                        onClick = onEdit,
+                        shape   = RoundedCornerShape(50),
+                        color   = Color.White.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text     = "Escribir letra",
+                            style    = MaterialTheme.typography.labelLarge,
+                            color    = Color.White.copy(alpha = 0.80f),
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                if (displayLines.isEmpty()) {
+                    Text(
+                        text      = lyrics.rawText.take(300),
+                        style     = MaterialTheme.typography.bodyLarge,
+                        color     = Color.White.copy(alpha = 0.75f),
+                        lineHeight = 26.sp
+                    )
+                } else {
+                    displayLines.forEachIndexed { index, line ->
+                        val isCurrent = lrcLines.isNotEmpty() && index == currentLineIndex
+                        Text(
+                            text   = line,
+                            style  = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                fontSize   = if (isCurrent) 19.sp else 16.sp,
+                                lineHeight = 28.sp
+                            ),
+                            color  = if (isCurrent) Color.White
+                                     else Color.White.copy(alpha = 0.45f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 5.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
