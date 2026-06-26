@@ -12,7 +12,6 @@ import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,8 +37,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.HideImage
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.QueueMusic
@@ -112,11 +110,12 @@ fun MusicScreen(
     // New optional callbacks — default no-op so existing callers still compile
     onSetCustomArtwork: (MediaEntry, Uri) -> Unit = { _, _ -> },
     onPlayNext: (MediaEntry) -> Unit = {},
-    onAddToQueue: (MediaEntry) -> Unit = {}
+    onAddToQueue: (MediaEntry) -> Unit = {},
+    onSaveMetadata: (MediaEntry, String, String, String) -> Unit = { _, _, _, _ -> }
 ) {
     var selectedItem    by remember { mutableStateOf<MediaEntry?>(null) }
     var deleteCandidate by remember { mutableStateOf<MediaEntry?>(null) }
-    var artworkTarget   by remember { mutableStateOf<MediaEntry?>(null) }
+    var showEditDialog  by remember { mutableStateOf(false) }
     val context         = LocalContext.current
     val sheetState      = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
@@ -125,17 +124,14 @@ fun MusicScreen(
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        val item = deleteCandidate
-        if (result.resultCode == Activity.RESULT_OK && item != null) onDeleteFromLibrary(item)
+        runCatching {
+            val item = deleteCandidate
+            if (result.resultCode == Activity.RESULT_OK && item != null) {
+                onDeleteFromLibrary(item)
+            }
+        }
         deleteCandidate = null
         selectedItem    = null
-    }
-
-    val artworkPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { onSetCustomArtwork(artworkTarget ?: return@let, it) }
-        artworkTarget = null
     }
 
     // ── Screen layout ─────────────────────────────────────────────────────────
@@ -348,32 +344,15 @@ fun MusicScreen(
                     )
                 }
 
-                // Section: Portada
-                SheetSection("PORTADA") {
+                // Section: Editar — opens full edit dialog
+                SheetSection("EDITAR") {
                     SheetRow(
-                        icon        = Icons.Filled.Image,
-                        title       = if (customUri != null) "Cambiar portada"
-                                      else "Añadir portada personalizada",
-                        subtitle    = if (customUri != null) "Ya tiene portada personalizada"
-                                      else "Elige una imagen de tu galería",
+                        icon        = Icons.Filled.Edit,
+                        title       = "Editar canción",
+                        subtitle    = "Cambia nombre, artista, álbum y portada",
                         showChevron = true,
-                        onClick     = {
-                            artworkTarget = item
-                            artworkPickerLauncher.launch("image/*")
-                        }
+                        onClick     = { showEditDialog = true }
                     )
-                    if (customUri != null) {
-                        SheetDivider()
-                        SheetRow(
-                            icon     = Icons.Filled.HideImage,
-                            title    = "Quitar portada personalizada",
-                            subtitle = "Vuelve a mostrar la portada original",
-                            onClick  = {
-                                onSetCustomArtwork(item, Uri.EMPTY)
-                                selectedItem = null
-                            }
-                        )
-                    }
                 }
 
                 // Section: Playlists
@@ -530,7 +509,9 @@ fun MusicScreen(
                                 selectedItem    = null
                             }
                         } else {
-                            onDeleteFromLibrary(item)
+                            runCatching {
+                                onDeleteFromLibrary(item)
+                            }
                             deleteCandidate = null
                             selectedItem    = null
                         }
@@ -547,6 +528,28 @@ fun MusicScreen(
                 }
             },
             shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // ── Edit audio dialog ─────────────────────────────────────────────────────
+
+    if (showEditDialog && selectedItem != null) {
+        val editItem = selectedItem!!
+        EditAudioDialog(
+            item             = editItem,
+            customArtworkUri = customArtworks[editItem.id],
+            onSave           = { title, artist, album, artworkUri ->
+                onSaveMetadata(editItem, title, artist, album)
+                when {
+                    artworkUri != null && artworkUri != Uri.EMPTY ->
+                        onSetCustomArtwork(editItem, artworkUri)
+                    artworkUri == Uri.EMPTY ->
+                        onSetCustomArtwork(editItem, Uri.EMPTY)
+                }
+                showEditDialog = false
+                selectedItem   = null
+            },
+            onDismiss = { showEditDialog = false }
         )
     }
 }
@@ -740,3 +743,6 @@ private fun loadArtworkBitmap(context: Context, item: MediaEntry): Bitmap? {
         runCatching { retriever.release() }
     }
 }
+
+// ── Edit dialog invocation (called from MusicScreen body) ────────────────────
+// EditAudioDialog is defined in EditAudioDialog.kt
