@@ -1,9 +1,9 @@
 package com.nexora.player
 
 import android.app.Application
+import com.google.gson.Gson
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.nexora.player.audio.VolumeBoostSessionManager
 import com.nexora.player.data.local.FavoriteMediaEntity
 import com.nexora.player.data.local.LyricsEntity
 import com.nexora.player.data.local.NexoraDatabase
@@ -15,11 +15,10 @@ import com.nexora.player.data.model.AppDestination
 import com.nexora.player.data.model.AppThemeMode
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.MediaKind
-import com.nexora.player.data.model.MostPlayedTrack
-import com.nexora.player.data.model.SmartPlaylists
 import com.nexora.player.data.model.SortMode
 import com.nexora.player.data.online.OnlineMusicRepository
 import com.nexora.player.data.online.OnlineTrack
+import com.nexora.player.audio.VolumeBoostSessionManager
 import com.nexora.player.data.preferences.AppPreferences
 import com.nexora.player.data.preferences.PreferencesRepository
 import com.nexora.player.data.repository.MediaStoreRepository
@@ -28,15 +27,14 @@ import com.nexora.player.playback.PlayerEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-
 
 data class AppUiState(
     val audio: List<MediaEntry> = emptyList(),
@@ -48,17 +46,35 @@ data class AppUiState(
     val videoSort: SortMode = SortMode.DATE_ADDED_DESC,
     val search: String = "",
     val currentItem: MediaEntry? = null,
-    val currentPositionMs: Long = 0L,
     val isPlaying: Boolean = false,
     val favorites: List<FavoriteMediaEntity> = emptyList(),
     val playlists: List<PlaylistEntity> = emptyList(),
     val history: List<PlaybackHistoryEntity> = emptyList(),
-    val mostPlayedTracks: List<MostPlayedTrack> = emptyList(),
     val onlineSavedTracks: List<OnlineSavedTrackEntity> = emptyList(),
     val onlineTracks: List<OnlineTrack> = emptyList(),
     val onlineLoading: Boolean = false,
     val onlineError: String? = null,
     val preferences: AppPreferences = AppPreferences()
+)
+
+private const val AUTO_PLAYLIST_ID = Long.MIN_VALUE + 42L
+
+private data class PersistedPlaybackItem(
+    val id: Long,
+    val kind: String,
+    val uriString: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val durationMs: Long,
+    val folder: String? = null
+)
+
+private data class PersistedPlaybackSession(
+    val queue: List<PersistedPlaybackItem>,
+    val currentIndex: Int,
+    val positionMs: Long,
+    val isPlaying: Boolean
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -68,14 +84,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val preferencesRepository = PreferencesRepository(context)
     private val onlineRepository = OnlineMusicRepository()
     private val database = NexoraDatabase.get(context)
+    private val gson = Gson()
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
 
     private var onlineSearchJob: Job? = null
     private var libraryRefreshJob: Job? = null
-    private var sleepTimerJob: Job? = null
-    private var resumeAttempted = false
+    private var resumeRestored = false
 
     init {
         observePlayback()
@@ -88,30 +104,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun observePlayback() {
         viewModelScope.launch {
             PlayerEngine.snapshot.collectLatest { snapshot ->
-                val previousItem = _uiState.value.currentItem
-                val nextState = _uiState.value.copy(
+                _uiState.value = _uiState.value.copy(
                     queue = snapshot.queue,
                     queueIndex = snapshot.currentIndex,
                     currentItem = snapshot.currentItem,
-                    currentPositionMs = snapshot.currentPositionMs,
                     isPlaying = snapshot.isPlaying
                 )
-                _uiState.value = nextState
-
-                val nowItem = snapshot.currentItem
-                if (nowItem != null && nowItem != previousItem) {
-                    recordPlay(nowItem)
-                }
-
-                if (nowItem != null && _uiState.value.preferences.resumePlaybackEnabled) {
-                    viewModelScope.launch {
-                        preferencesRepository.setLastPlaybackState(
-                            mediaId = nowItem.id,
-                            mediaKind = nowItem.kind.name,
-                            positionMs = snapshot.currentPositionMs
-                        )
-                    }
-                }
+                persistPlaybackSessionIfNeeded()
             }
         }
     }
@@ -123,18 +122,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     audioSort = prefs.audioSort,
                     videoSort = prefs.videoSort,
                     selectedDestination = prefs.lastDestination,
-                    preferences = prefs
+                    preferences = prefs,
+                    playlists = mergeWithAutoPlaylist(_uiState.value.history, _uiState.value.playlists.filterNot { it.id == AUTO_PLAYLIST_ID })
                 )
-                PlayerEngine.setShuffleMode(prefs.shuffleEnabled)
-                PlayerEngine.setCrossfade(prefs.crossfadeEnabled, prefs.crossfadeDurationMs)
-                PlayerEngine.setVolumeBoost(prefs.volumeBoostEnabled, prefs.volumeBoostGainMb)
-                configureSleepTimer(prefs)
+                PlayerEngine.setShuffleEnabled(prefs.shuffleEnabled)
+                PlayerEngine.setCrossfadeEnabled(prefs.crossfadeEnabled, prefs.crossfadeDurationMs)
                 refreshLibrary()
                 refreshOnlineResultsIfNeeded()
-                syncAutoPlaylist()
-                if (!resumeAttempted) {
-                    resumeAttempted = true
-                    tryResumePlayback(prefs)
+                tryRestorePlaybackSession(prefs)
+                if (prefs.sleepTimerEnabled && prefs.sleepTimerEndAtMs > 0L && System.currentTimeMillis() >= prefs.sleepTimerEndAtMs) {
+                    PlayerEngine.clear(context)
+                    viewModelScope.launch { preferencesRepository.setSleepTimerEnabled(false) }
                 }
             }
         }
@@ -152,105 +150,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }.collect { (favorites, playlists, history, onlineSaved) ->
                 _uiState.value = _uiState.value.copy(
                     favorites = favorites,
-                    playlists = playlists,
+                    playlists = mergeWithAutoPlaylist(history, playlists),
                     history = history,
-                    onlineSavedTracks = onlineSaved,
-                    mostPlayedTracks = buildMostPlayedTracks(history, _uiState.value.audio)
+                    onlineSavedTracks = onlineSaved
                 )
-                syncAutoPlaylist()
             }
         }
-    }
-
-    private fun buildMostPlayedTracks(
-        history: List<PlaybackHistoryEntity>,
-        audioLibrary: List<MediaEntry>
-    ): List<MostPlayedTrack> {
-        val counts = history
-            .filter { it.mediaKind == MediaKind.AUDIO.name }
-            .groupingBy { it.mediaId }
-            .eachCount()
-
-        val audioById = audioLibrary.associateBy { it.id }
-        return counts.entries
-            .sortedWith(compareByDescending<Map.Entry<Long, Int>> { it.value }.thenBy { it.key })
-            .mapNotNull { (mediaId, playCount) ->
-                audioById[mediaId]?.let { MostPlayedTrack(media = it, playCount = playCount) }
-            }
-    }
-
-    private suspend fun ensureAutoPlaylistExists(): PlaylistEntity {
-        val existing = database.playlistsDao().getPlaylistByName(SmartPlaylists.MOST_PLAYED_NAME)
-        if (existing != null) return existing
-        val newId = database.playlistsDao().insertPlaylist(PlaylistEntity(name = SmartPlaylists.MOST_PLAYED_NAME))
-        return PlaylistEntity(id = newId, name = SmartPlaylists.MOST_PLAYED_NAME)
-    }
-
-    private fun buildAutoPlaylistMedia(): List<MediaEntry> {
-        return _uiState.value.mostPlayedTracks.map { it.media }
-    }
-
-    private suspend fun syncAutoPlaylist() {
-        val autoTracks = buildAutoPlaylistMedia()
-        val autoPlaylist = ensureAutoPlaylistExists()
-        val existingItems = database.playlistsDao().observeItems(autoPlaylist.id).first()
-        val autoKeys = autoTracks.map { it.id to it.kind.name }.toSet()
-        val manualExtras = existingItems.filterNot { (it.mediaId to it.mediaKind) in autoKeys }
-
-        val desiredEntries = autoTracks.mapIndexed { index, media -> media.toPlaylistItem(autoPlaylist.id, orderIndex = index) } +
-            manualExtras.mapIndexed { index, item -> item.copy(orderIndex = autoTracks.size + index) }
-
-        val currentKeys = existingItems.map { it.mediaId to it.mediaKind to it.orderIndex }
-        val desiredKeys = desiredEntries.map { it.mediaId to it.mediaKind to it.orderIndex }
-        if (currentKeys == desiredKeys) return
-
-        database.playlistsDao().deleteItemsForPlaylist(autoPlaylist.id)
-        desiredEntries.forEach { item -> database.playlistsDao().insertPlaylistItem(item) }
-        database.playlistsDao().updatePlaylist(autoPlaylist.copy(updatedAt = System.currentTimeMillis()))
-    }
-
-    private fun configureSleepTimer(prefs: AppPreferences) {
-        sleepTimerJob?.cancel()
-        if (!prefs.sleepTimerEnabled || prefs.sleepTimerMinutes <= 0) return
-        sleepTimerJob = viewModelScope.launch {
-            delay(prefs.sleepTimerMinutes.toLong() * 60_000L)
-            PlayerEngine.clear(context)
-        }
-    }
-
-    private fun tryResumePlayback(prefs: AppPreferences) {
-        val mediaId = prefs.lastPlaybackMediaId
-        val positionMs = prefs.lastPlaybackPositionMs
-        if (!prefs.resumePlaybackEnabled || mediaId <= 0L || positionMs <= 0L) return
-        val target = _uiState.value.audio.firstOrNull { it.id == mediaId }
-            ?: _uiState.value.videos.firstOrNull { it.id == mediaId }
-            ?: return
-        PlayerEngine.play(context, target)
-        PlayerEngine.seekTo(context, positionMs)
     }
 
     fun refreshLibrary() {
         viewModelScope.launch {
-            val prefs = _uiState.value.preferences
-            val hiddenIds = prefs.hiddenAudioIds
-            val hiddenFolders = prefs.hiddenFolderPaths.map { normalizeFolderPath(it) }.toSet()
+            val hiddenIds = _uiState.value.preferences.hiddenAudioIds
+            val hiddenFolders = _uiState.value.preferences.hiddenFolders
             val audio = mediaRepository.loadAudio(_uiState.value.audioSort)
                 .filterNot { it.id in hiddenIds }
-                .filterNot { it.folder.normalizeFolder().let { folder -> folder in hiddenFolders } }
+                .filterNot { entry ->
+                    val folder = entry.folder.orEmpty()
+                    hiddenFolders.any { hidden -> folder.startsWith(hidden) || folder.contains(hidden, ignoreCase = true) }
+                }
             val videos = mediaRepository.loadVideos(_uiState.value.videoSort)
-            _uiState.value = _uiState.value.copy(
-                audio = audio,
-                videos = videos,
-                mostPlayedTracks = buildMostPlayedTracks(_uiState.value.history, audio)
-            )
+            _uiState.value = _uiState.value.copy(audio = audio, videos = videos)
 
             if (_uiState.value.preferences.libraryChangeNotificationsEnabled) {
                 MediaLibraryNotifier.maybeNotify(context, audio, videos)
-            }
-            syncAutoPlaylist()
-            if (_uiState.value.preferences.resumePlaybackEnabled && !resumeAttempted) {
-                resumeAttempted = true
-                tryResumePlayback(_uiState.value.preferences)
             }
         }
     }
@@ -277,9 +199,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refreshLibrary()
     }
 
-    fun setThemeMode(mode: AppThemeMode) { viewModelScope.launch { preferencesRepository.setThemeMode(mode) } }
-    fun setDynamicColor(enabled: Boolean) { viewModelScope.launch { preferencesRepository.setDynamicColor(enabled) } }
-    fun setLyricsTranslationEnabled(enabled: Boolean) { viewModelScope.launch { preferencesRepository.setLyricsTranslationEnabled(enabled) } }
+    fun setThemeMode(mode: AppThemeMode) {
+        viewModelScope.launch { preferencesRepository.setThemeMode(mode) }
+    }
+
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setDynamicColor(enabled) }
+    }
+
+    fun setLyricsTranslationEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setLyricsTranslationEnabled(enabled) }
+    }
 
     fun setVolumeBoostEnabled(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setVolumeBoostEnabled(enabled) }
@@ -295,73 +225,97 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         PlayerEngine.setVolumeBoost(_uiState.value.preferences.volumeBoostEnabled, safeGain)
     }
 
+    fun setLibraryChangeNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setLibraryChangeNotificationsEnabled(enabled) }
+    }
+
     fun setShuffleEnabled(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setShuffleEnabled(enabled) }
-        PlayerEngine.setShuffleMode(enabled)
-    }
-
-    fun setCrossfadeEnabled(enabled: Boolean) {
-        viewModelScope.launch { preferencesRepository.setCrossfadeEnabled(enabled) }
-        PlayerEngine.setCrossfade(enabled, _uiState.value.preferences.crossfadeDurationMs)
-    }
-
-    fun setCrossfadeDurationMs(durationMs: Int) {
-        viewModelScope.launch { preferencesRepository.setCrossfadeDurationMs(durationMs) }
-        PlayerEngine.setCrossfade(_uiState.value.preferences.crossfadeEnabled, durationMs)
-    }
-
-    fun setSleepTimerEnabled(enabled: Boolean) {
-        viewModelScope.launch { preferencesRepository.setSleepTimerEnabled(enabled) }
-        configureSleepTimer(_uiState.value.preferences.copy(sleepTimerEnabled = enabled))
-    }
-
-    fun setSleepTimerMinutes(minutes: Int) {
-        viewModelScope.launch { preferencesRepository.setSleepTimerMinutes(minutes) }
-        configureSleepTimer(_uiState.value.preferences.copy(sleepTimerMinutes = minutes))
+        PlayerEngine.setShuffleEnabled(enabled)
     }
 
     fun setResumePlaybackEnabled(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setResumePlaybackEnabled(enabled) }
+        if (!enabled) {
+            viewModelScope.launch { preferencesRepository.clearPlaybackSessionJson() }
+        }
     }
 
-    fun setLibraryChangeNotificationsEnabled(enabled: Boolean) {
-        viewModelScope.launch { preferencesRepository.setLibraryChangeNotificationsEnabled(enabled) }
+    fun setCrossfadeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setCrossfadeEnabled(enabled)
+            PlayerEngine.setCrossfadeEnabled(enabled, _uiState.value.preferences.crossfadeDurationMs)
+        }
+    }
+
+    fun setCrossfadeDurationMs(durationMs: Int) {
+        val safe = durationMs.coerceIn(250, 5000)
+        viewModelScope.launch {
+            preferencesRepository.setCrossfadeDurationMs(safe)
+            PlayerEngine.setCrossfadeEnabled(_uiState.value.preferences.crossfadeEnabled, safe)
+        }
+    }
+
+    fun startSleepTimer(minutes: Int) {
+        val safe = minutes.coerceIn(5, 240)
+        val endAt = System.currentTimeMillis() + safe * 60_000L
+        viewModelScope.launch {
+            preferencesRepository.setSleepTimerMinutes(safe)
+            preferencesRepository.setSleepTimerEndAtMs(endAt)
+            preferencesRepository.setSleepTimerEnabled(true)
+        }
+    }
+
+    fun cancelSleepTimer() {
+        viewModelScope.launch {
+            preferencesRepository.setSleepTimerEnabled(false)
+            preferencesRepository.setSleepTimerEndAtMs(0L)
+        }
+    }
+
+    fun addHiddenFolder(folder: String) {
+        viewModelScope.launch {
+            preferencesRepository.addHiddenFolder(folder)
+            refreshLibrary()
+        }
+    }
+
+    fun removeHiddenFolder(folder: String) {
+        viewModelScope.launch {
+            preferencesRepository.removeHiddenFolder(folder)
+            refreshLibrary()
+        }
+    }
+
+    fun clearHiddenFolders() {
+        viewModelScope.launch {
+            preferencesRepository.setHiddenFolders(emptySet())
+            refreshLibrary()
+        }
     }
 
     fun setOnlineMusicSearchEnabled(enabled: Boolean) {
         viewModelScope.launch { preferencesRepository.setOnlineMusicSearchEnabled(enabled) }
         if (!enabled) {
             onlineSearchJob?.cancel()
-            _uiState.value = _uiState.value.copy(onlineTracks = emptyList(), onlineLoading = false, onlineError = null)
+            _uiState.value = _uiState.value.copy(
+                onlineTracks = emptyList(),
+                onlineLoading = false,
+                onlineError = null
+            )
         } else {
             refreshOnlineResultsIfNeeded()
         }
     }
 
-    fun setHiddenFolderPaths(paths: Set<String>) {
-        viewModelScope.launch { preferencesRepository.setHiddenFolderPaths(paths) }
-        refreshLibrary()
-    }
-
-    fun addHiddenFolderPath(path: String) {
-        viewModelScope.launch { preferencesRepository.addHiddenFolderPath(path) }
-        refreshLibrary()
-    }
-
-    fun removeHiddenFolderPath(path: String) {
-        viewModelScope.launch { preferencesRepository.removeHiddenFolderPath(path) }
-        refreshLibrary()
-    }
-
-    fun clearHiddenFolderPaths() {
-        viewModelScope.launch { preferencesRepository.clearHiddenFolderPaths() }
-        refreshLibrary()
-    }
-
     private fun scheduleOnlineSearch(query: String) {
         onlineSearchJob?.cancel()
         if (query.isBlank() || !_uiState.value.preferences.onlineMusicSearchEnabled) {
-            _uiState.value = _uiState.value.copy(onlineTracks = emptyList(), onlineLoading = false, onlineError = null)
+            _uiState.value = _uiState.value.copy(
+                onlineTracks = emptyList(),
+                onlineLoading = false,
+                onlineError = null
+            )
             return
         }
 
@@ -378,7 +332,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
 
-            _uiState.value = _uiState.value.copy(onlineLoading = false, onlineTracks = results, onlineError = null)
+            _uiState.value = _uiState.value.copy(
+                onlineLoading = false,
+                onlineTracks = results,
+                onlineError = null
+            )
         }
     }
 
@@ -390,16 +348,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playQueue(items: List<MediaEntry>, startIndex: Int = 0) {
+        PlayerEngine.setShuffleEnabled(_uiState.value.preferences.shuffleEnabled)
+        PlayerEngine.setCrossfadeEnabled(_uiState.value.preferences.crossfadeEnabled, _uiState.value.preferences.crossfadeDurationMs)
         PlayerEngine.playQueue(context, items, startIndex)
-        items.getOrNull(startIndex.coerceIn(0, items.lastIndex))?.let { recordPlay(it) }
+        persistPlaybackSessionFromCurrentPlayer()
     }
 
     fun play(item: MediaEntry) {
+        PlayerEngine.setShuffleEnabled(_uiState.value.preferences.shuffleEnabled)
+        PlayerEngine.setCrossfadeEnabled(_uiState.value.preferences.crossfadeEnabled, _uiState.value.preferences.crossfadeDurationMs)
         PlayerEngine.play(context, item)
-        recordPlay(item)
-    }
-
-    private fun recordPlay(item: MediaEntry) {
         viewModelScope.launch {
             database.historyDao().insert(
                 PlaybackHistoryEntity(
@@ -426,12 +384,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (startIndex >= 0) playQueue(queue, startIndex) else play(item.toMediaEntry())
     }
 
-    fun togglePlayPause() { PlayerEngine.togglePlayPause(context) }
-    fun playNext() { PlayerEngine.skipNext(context) }
-    fun playPrevious() { PlayerEngine.skipPrevious(context) }
-    fun jumpToQueueIndex(index: Int) { PlayerEngine.jumpTo(context, index) }
-    fun removeQueueIndex(index: Int) { PlayerEngine.removeAt(context, index) }
-    fun clearQueue() { PlayerEngine.clear(context) }
+    fun togglePlayPause() {
+        PlayerEngine.togglePlayPause(context)
+    }
+
+    fun playNext() {
+        PlayerEngine.skipNext(context)
+    }
+
+    fun playPrevious() {
+        PlayerEngine.skipPrevious(context)
+    }
+
+    fun jumpToQueueIndex(index: Int) {
+        PlayerEngine.jumpTo(context, index)
+    }
+
+    fun removeQueueIndex(index: Int) {
+        PlayerEngine.removeAt(context, index)
+    }
+
+    fun clearQueue() {
+        PlayerEngine.clear(context)
+        viewModelScope.launch { preferencesRepository.clearPlaybackSessionJson() }
+    }
 
     fun hideFromLibrary(entry: MediaEntry) {
         viewModelScope.launch {
@@ -482,11 +458,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createPlaylist(name: String) {
-        viewModelScope.launch { database.playlistsDao().insertPlaylist(PlaylistEntity(name = name.trim())) }
+        viewModelScope.launch {
+            database.playlistsDao().insertPlaylist(PlaylistEntity(name = name.trim()))
+        }
     }
 
     fun deletePlaylist(playlist: PlaylistEntity) {
-        if (playlist.name == SmartPlaylists.MOST_PLAYED_NAME) return
+        if (playlist.id == AUTO_PLAYLIST_ID) return
         viewModelScope.launch {
             database.playlistsDao().deleteItemsForPlaylist(playlist.id)
             database.playlistsDao().deletePlaylist(playlist.id)
@@ -494,43 +472,73 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addToPlaylist(playlist: PlaylistEntity, entry: MediaEntry) {
+        addToPlaylist(playlist, listOf(entry))
+    }
+
+    fun addToPlaylist(playlist: PlaylistEntity, entries: List<MediaEntry>) {
+        if (playlist.id == AUTO_PLAYLIST_ID || entries.isEmpty()) return
         viewModelScope.launch {
-            val existing = database.playlistsDao().observeItems(playlist.id).first()
-            val duplicate = existing.any { it.mediaId == entry.id && it.mediaKind == entry.kind.name }
-            if (duplicate) return@launch
-            val next = database.playlistsDao().nextOrderIndex(playlist.id) + 1
-            database.playlistsDao().insertPlaylistItem(
-                PlaylistItemEntity(
-                    playlistId = playlist.id,
-                    mediaId = entry.id,
-                    mediaKind = entry.kind.name,
-                    title = entry.title,
-                    artist = entry.artist,
-                    album = entry.album,
-                    durationMs = entry.durationMs,
-                    uriString = entry.uri.toString(),
-                    orderIndex = next
+            var next = database.playlistsDao().nextOrderIndex(playlist.id)
+            entries.distinctBy { it.id to it.kind }.forEach { entry ->
+                next += 1
+                database.playlistsDao().insertPlaylistItem(
+                    PlaylistItemEntity(
+                        playlistId = playlist.id,
+                        mediaId = entry.id,
+                        mediaKind = entry.kind.name,
+                        title = entry.title,
+                        artist = entry.artist,
+                        album = entry.album,
+                        durationMs = entry.durationMs,
+                        uriString = entry.uri.toString(),
+                        orderIndex = next
+                    )
                 )
-            )
+            }
         }
     }
 
-    fun playlistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> = database.playlistsDao().observeItems(playlistId)
-    fun playlistPreviewItems(playlistId: Long): Flow<List<PlaylistItemEntity>> = database.playlistsDao().observeItems(playlistId).map { it.take(4) }
+    fun playlistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> {
+        return if (playlistId == AUTO_PLAYLIST_ID) {
+            database.historyDao().observeRecent().map { history -> buildMostPlayedPlaylist(history) }
+        } else {
+            database.playlistsDao().observeItems(playlistId)
+        }
+    }
 
-    fun removeFromPlaylist(itemId: Long) { viewModelScope.launch { database.playlistsDao().deletePlaylistItem(itemId) } }
+    fun playlistPreviewItems(playlistId: Long): Flow<List<PlaylistItemEntity>> {
+        return if (playlistId == AUTO_PLAYLIST_ID) {
+            database.historyDao().observeRecent().map { history -> buildMostPlayedPlaylist(history).take(4) }
+        } else {
+            database.playlistsDao().observeItems(playlistId).map { it.take(4) }
+        }
+    }
+
+    fun removeFromPlaylist(itemId: Long) {
+        viewModelScope.launch {
+            database.playlistsDao().deletePlaylistItem(itemId)
+        }
+    }
 
     fun playFavoriteQueue(favorites: List<FavoriteMediaEntity>, favorite: FavoriteMediaEntity) {
         val audioFavorites = favorites.map { it.toMediaEntry() }
         val selected = favorite.toMediaEntry()
         val startIndex = audioFavorites.indexOfFirst { it.id == selected.id && it.kind == selected.kind }
-        if (startIndex >= 0) playQueue(audioFavorites, startIndex) else play(selected)
+        if (startIndex >= 0) {
+            playQueue(audioFavorites, startIndex)
+        } else {
+            play(selected)
+        }
     }
 
     fun playOnlineQueue(tracks: List<OnlineTrack>, track: OnlineTrack) {
         val queue = tracks.map { it.toMediaEntry() }
         val startIndex = queue.indexOfFirst { it.id == track.stableMediaId }
-        if (startIndex >= 0) playQueue(queue, startIndex) else play(track.toMediaEntry())
+        if (startIndex >= 0) {
+            playQueue(queue, startIndex)
+        } else {
+            play(track.toMediaEntry())
+        }
     }
 
     fun toggleSavedOnlineTrack(track: OnlineTrack) {
@@ -562,7 +570,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     @Deprecated("Use playFavoriteQueue for favorites section playback")
-    fun playFavorite(favorite: FavoriteMediaEntity) { play(favorite.toMediaEntry()) }
+    fun playFavorite(favorite: FavoriteMediaEntity) {
+        play(favorite.toMediaEntry())
+    }
 
     private suspend fun cleanupAfterMediaChange(entry: MediaEntry) {
         val snapshot = PlayerEngine.snapshot.value
@@ -582,27 +592,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         database.historyDao().deleteByMediaId(entry.id)
     }
 
-    fun playPlaylistItem(item: PlaylistItemEntity) { play(item.toMediaEntry()) }
+    fun playPlaylistItem(item: PlaylistItemEntity) {
+        play(item.toMediaEntry())
+    }
 
-    private fun FavoriteMediaEntity.toMediaEntry(): MediaEntry = MediaEntry(
-        id = mediaId,
-        kind = if (mediaKind == MediaKind.VIDEO.name) MediaKind.VIDEO else MediaKind.AUDIO,
-        uri = android.net.Uri.parse(uriString),
-        title = title,
-        artist = artist,
-        album = album,
-        durationMs = durationMs
-    )
+    private fun FavoriteMediaEntity.toMediaEntry(): MediaEntry {
+        return MediaEntry(
+            id = mediaId,
+            kind = if (mediaKind == MediaKind.VIDEO.name) MediaKind.VIDEO else MediaKind.AUDIO,
+            uri = android.net.Uri.parse(uriString),
+            title = title,
+            artist = artist,
+            album = album,
+            durationMs = durationMs
+        )
+    }
 
-    private fun PlaylistItemEntity.toMediaEntry(): MediaEntry = MediaEntry(
-        id = mediaId,
-        kind = if (mediaKind == MediaKind.VIDEO.name) MediaKind.VIDEO else MediaKind.AUDIO,
-        uri = android.net.Uri.parse(uriString),
-        title = title,
-        artist = artist,
-        album = album,
-        durationMs = durationMs
-    )
+    private fun PlaylistItemEntity.toMediaEntry(): MediaEntry {
+        return MediaEntry(
+            id = mediaId,
+            kind = if (mediaKind == MediaKind.VIDEO.name) MediaKind.VIDEO else MediaKind.AUDIO,
+            uri = android.net.Uri.parse(uriString),
+            title = title,
+            artist = artist,
+            album = album,
+            durationMs = durationMs
+        )
+    }
 
     private fun OnlineSavedTrackEntity.toOnlineTrack(): OnlineTrack = OnlineTrack(
         providerId = providerId,
@@ -618,10 +634,122 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         sourcePageUrl = sourcePageUrl
     )
 
+
+    private fun mergeWithAutoPlaylist(
+        history: List<PlaybackHistoryEntity>,
+        playlists: List<PlaylistEntity>
+    ): List<PlaylistEntity> {
+        val auto = PlaylistEntity(
+            id = AUTO_PLAYLIST_ID,
+            name = "Más escuchadas",
+            createdAt = 0L,
+            updatedAt = 0L
+        )
+        return buildList {
+            add(auto)
+            addAll(playlists.filterNot { it.id == AUTO_PLAYLIST_ID })
+        }
+    }
+
+    private fun buildMostPlayedPlaylist(history: List<PlaybackHistoryEntity>): List<PlaylistItemEntity> {
+        return history
+            .groupBy { it.mediaKind + ":" + it.mediaId }
+            .values
+            .mapNotNull { group ->
+                val first = group.firstOrNull() ?: return@mapNotNull null
+                PlaylistItemEntity(
+                    playlistId = AUTO_PLAYLIST_ID,
+                    mediaId = first.mediaId,
+                    mediaKind = first.mediaKind,
+                    title = first.title,
+                    artist = first.artist,
+                    album = first.album,
+                    durationMs = first.durationMs,
+                    uriString = first.uriString,
+                    orderIndex = group.size
+                )
+            }
+            .sortedWith(compareByDescending<PlaylistItemEntity> { it.orderIndex }.thenBy { it.title.lowercase() })
+            .mapIndexed { index, item -> item.copy(orderIndex = index) }
+    }
+
+    private fun persistPlaybackSessionIfNeeded() {
+        val snapshot = PlayerEngine.snapshot.value
+        if (snapshot.currentItem == null || snapshot.queue.isEmpty() || !_uiState.value.preferences.resumePlaybackEnabled) return
+        persistPlaybackSessionFromCurrentPlayer()
+    }
+
+    private fun persistPlaybackSessionFromCurrentPlayer() {
+        val snapshot = PlayerEngine.snapshot.value
+        val current = snapshot.currentItem ?: return
+        if (snapshot.queue.isEmpty()) return
+        val player = runCatching { PlayerEngine.get(context) }.getOrNull() ?: return
+        val payload = PersistedPlaybackSession(
+            queue = snapshot.queue.map { item ->
+                PersistedPlaybackItem(
+                    id = item.id,
+                    kind = item.kind.name,
+                    uriString = item.uri.toString(),
+                    title = item.title,
+                    artist = item.artist,
+                    album = item.album,
+                    durationMs = item.durationMs,
+                    folder = item.folder
+                )
+            },
+            currentIndex = snapshot.currentIndex,
+            positionMs = player.currentPosition.coerceAtLeast(0L),
+            isPlaying = snapshot.isPlaying
+        )
+        viewModelScope.launch {
+            preferencesRepository.setPlaybackSessionJson(gson.toJson(payload))
+        }
+    }
+
+    private fun tryRestorePlaybackSession(prefs: AppPreferences) {
+        if (resumeRestored || !prefs.resumePlaybackEnabled) return
+        val json = prefs.playbackSessionJson.trim()
+        if (json.isBlank()) return
+        val payload = runCatching { gson.fromJson(json, PersistedPlaybackSession::class.java) }.getOrNull() ?: return
+        if (payload.queue.isEmpty()) return
+        if (PlayerEngine.snapshot.value.queue.isNotEmpty()) return
+
+        val queue = payload.queue.map { item ->
+            MediaEntry(
+                id = item.id,
+                kind = if (item.kind == MediaKind.VIDEO.name) MediaKind.VIDEO else MediaKind.AUDIO,
+                uri = android.net.Uri.parse(item.uriString),
+                title = item.title,
+                artist = item.artist,
+                album = item.album,
+                durationMs = item.durationMs,
+                folder = item.folder
+            )
+        }
+        val safeIndex = payload.currentIndex.coerceIn(0, queue.lastIndex)
+        PlayerEngine.setShuffleEnabled(prefs.shuffleEnabled)
+        PlayerEngine.setCrossfadeEnabled(prefs.crossfadeEnabled, prefs.crossfadeDurationMs)
+        PlayerEngine.playQueue(context, queue, safeIndex, payload.positionMs)
+        if (!payload.isPlaying) {
+            PlayerEngine.togglePlayPause(context)
+        }
+        resumeRestored = true
+    }
+
     fun filteredAudio(): List<MediaEntry> {
         val q = _uiState.value.search.trim().lowercase()
         return _uiState.value.audio.filter {
             q.isBlank() || it.title.lowercase().contains(q) || it.artist.lowercase().contains(q) || it.album.lowercase().contains(q)
+        }
+    }
+
+    private fun startLibraryPolling() {
+        libraryRefreshJob?.cancel()
+        libraryRefreshJob = viewModelScope.launch {
+            while (true) {
+                delay(10 * 60 * 1000L)
+                refreshLibrary()
+            }
         }
     }
 
@@ -633,22 +761,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun favoriteIds(): Set<Long> = _uiState.value.favorites.map { it.mediaId }.toSet()
-
-    private fun normalizeFolderPath(path: String?): String = path.orEmpty().trim().lowercase().trimEnd('/')
-
-    private fun String?.normalizeFolder(): String = normalizeFolderPath(this)
-
-    private fun MediaEntry.toPlaylistItem(playlistId: Long, orderIndex: Int): PlaylistItemEntity = PlaylistItemEntity(
-        playlistId = playlistId,
-        mediaId = id,
-        mediaKind = kind.name,
-        title = title,
-        artist = artist,
-        album = album,
-        durationMs = durationMs,
-        uriString = uri.toString(),
-        orderIndex = orderIndex
-    )
 }
 
 private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

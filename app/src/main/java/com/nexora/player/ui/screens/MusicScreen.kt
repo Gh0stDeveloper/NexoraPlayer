@@ -175,7 +175,8 @@ fun MusicScreen(
                             SortMode.DATE_ADDED_DESC, SortMode.DATE_ADDED_ASC,
                             SortMode.TITLE_ASC,       SortMode.TITLE_DESC,
                             SortMode.DURATION_ASC,    SortMode.DURATION_DESC,
-                            SortMode.ARTIST_ASC,      SortMode.ALBUM_ASC
+                            SortMode.ARTIST_ASC,      SortMode.ALBUM_ASC,
+                            SortMode.FOLDER_ASC,      SortMode.FOLDER_DESC
                         ),
                         onSelected = onSortSelected
                     )
@@ -215,8 +216,8 @@ fun MusicScreen(
         } else {
             LazyColumn(
                 modifier        = Modifier.fillMaxSize(),
-                contentPadding  = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding  = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(items, key = { it.id }) { item ->
                     MediaItemRow(

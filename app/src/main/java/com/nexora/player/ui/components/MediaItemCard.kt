@@ -30,6 +30,7 @@ import com.nexora.player.data.model.MediaEntry
 @Composable
 fun MediaItemRow(
     item: MediaEntry,
+    modifier: Modifier = Modifier,
     isFavorite: Boolean = false,
     onClick: () -> Unit,
     onFavoriteClick: (() -> Unit)? = null,
@@ -37,23 +38,23 @@ fun MediaItemRow(
 ) {
     ElevatedCard(
         shape = RoundedCornerShape(28.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MediaArtwork(
                 item = item,
-                modifier = Modifier.size(72.dp)
+                modifier = Modifier.size(60.dp)
             )
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
                     item.title,
@@ -98,7 +99,7 @@ fun MediaItemRow(
                 if (onFavoriteClick != null) {
                     FilledTonalIconButton(
                         onClick = onFavoriteClick,
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -114,7 +115,7 @@ fun MediaItemRow(
                 if (onMoreClick != null) {
                     FilledTonalIconButton(
                         onClick = onMoreClick,
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.media_more_actions))
                     }

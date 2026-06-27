@@ -27,6 +27,8 @@ import com.nexora.player.equalizer.EqualizerSettings
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.MediaKind
 import com.nexora.player.data.model.PlaybackSnapshot
+import com.nexora.player.data.preferences.AppPreferences
+import com.nexora.player.data.preferences.PreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,10 +55,12 @@ class PlayerService : MediaSessionService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val database by lazy { NexoraDatabase.get(applicationContext) }
     private val equalizerRepository by lazy { EqualizerPreferencesRepository(applicationContext) }
+    private val preferencesRepository by lazy { PreferencesRepository(applicationContext) }
 
     private var mediaSession: MediaSession? = null
     private var favoriteIds: Set<Long> = emptySet()
     private var equalizerSettings: EqualizerSettings = EqualizerSettings()
+    private var currentPreferences: AppPreferences = AppPreferences()
     private var progressTickerJob: Job? = null
 
     override fun onCreate() {
@@ -66,6 +70,7 @@ class PlayerService : MediaSessionService() {
         observeFavorites()
         observeEqualizer()
         observePlayback()
+        observePreferences()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -121,6 +126,17 @@ class PlayerService : MediaSessionService() {
             equalizerRepository.settings.collectLatest { settings ->
                 equalizerSettings = settings
                 EqualizerSessionManager.applySettings(settings)
+            }
+        }
+    }
+
+    private fun observePreferences() {
+        serviceScope.launch {
+            preferencesRepository.preferences.collectLatest { prefs ->
+                currentPreferences = prefs
+                PlayerEngine.setShuffleEnabled(prefs.shuffleEnabled)
+                PlayerEngine.setCrossfadeEnabled(prefs.crossfadeEnabled, prefs.crossfadeDurationMs)
+                maybeApplySleepTimer(prefs)
             }
         }
     }
@@ -267,8 +283,18 @@ class PlayerService : MediaSessionService() {
                 val latest = PlayerEngine.snapshot.value
                 val latestCurrent = latest.currentItem
                 if (!latest.isPlaying || latestCurrent?.kind != MediaKind.AUDIO) break
+                if (currentPreferences.sleepTimerEnabled && currentPreferences.sleepTimerEndAtMs > 0L && System.currentTimeMillis() >= currentPreferences.sleepTimerEndAtMs) {
+                    stopPlaybackAndHideNotification()
+                    break
+                }
                 refreshNotification(latest)
             }
+        }
+    }
+
+    private fun maybeApplySleepTimer(prefs: AppPreferences) {
+        if (prefs.sleepTimerEnabled && prefs.sleepTimerEndAtMs > 0L && System.currentTimeMillis() >= prefs.sleepTimerEndAtMs) {
+            stopPlaybackAndHideNotification()
         }
     }
 

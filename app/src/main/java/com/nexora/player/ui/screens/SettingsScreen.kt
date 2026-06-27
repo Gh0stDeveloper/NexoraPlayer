@@ -52,6 +52,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -207,43 +208,43 @@ fun SettingsScreen(
     dynamicColor: Boolean,
     hiddenAudioCount: Int,
     hiddenAudioItems: List<HiddenAudioItem> = emptyList(),
-    hiddenFolderPaths: Set<String> = emptySet(),
     onlineMusicSearchEnabled: Boolean,
     lyricsTranslationEnabled: Boolean,
     volumeBoostEnabled: Boolean,
-    shuffleEnabled: Boolean,
-    crossfadeEnabled: Boolean,
-    crossfadeDurationMs: Int,
-    sleepTimerEnabled: Boolean,
-    sleepTimerMinutes: Int,
-    resumePlaybackEnabled: Boolean,
     libraryChangeNotificationsEnabled: Boolean,
+    shuffleEnabled: Boolean = false,
+    resumePlaybackEnabled: Boolean = true,
+    crossfadeEnabled: Boolean = false,
+    crossfadeDurationMs: Int = 1200,
+    sleepTimerEnabled: Boolean = false,
+    sleepTimerMinutes: Int = 30,
+    hiddenFolders: List<String> = emptyList(),
     currentLanguage: AppLanguage,
     onThemeChange: (AppThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
     onOnlineMusicSearchChange: (Boolean) -> Unit,
     onLyricsTranslationChange: (Boolean) -> Unit,
     onVolumeBoostChange: (Boolean) -> Unit,
-    onShuffleChange: (Boolean) -> Unit,
-    onCrossfadeChange: (Boolean) -> Unit,
-    onCrossfadeDurationChange: (Int) -> Unit,
-    onSleepTimerEnabledChange: (Boolean) -> Unit,
-    onSleepTimerMinutesChange: (Int) -> Unit,
-    onResumePlaybackChange: (Boolean) -> Unit,
     onLibraryChangeNotificationsChange: (Boolean) -> Unit,
+    onShuffleChange: (Boolean) -> Unit = {},
+    onResumePlaybackChange: (Boolean) -> Unit = {},
+    onCrossfadeChange: (Boolean) -> Unit = {},
+    onCrossfadeDurationChange: (Int) -> Unit = {},
+    onStartSleepTimer: (Int) -> Unit = {},
+    onCancelSleepTimer: () -> Unit = {},
     onLanguageChange: (AppLanguage) -> Unit,
     onRestoreHiddenAudio: () -> Unit,
-    onHiddenFolderAdd: (String) -> Unit,
-    onHiddenFolderRemove: (String) -> Unit,
-    onHiddenFolderClear: () -> Unit,
+    onAddHiddenFolder: (String) -> Unit = {},
+    onRemoveHiddenFolder: (String) -> Unit = {},
+    onClearHiddenFolders: () -> Unit = {},
     onRestoreHiddenItem: (Long) -> Unit = {}
 ) {
     val uriHandler      = LocalUriHandler.current
     val showTerms       = remember { mutableStateOf(false) }
     val showPrivacy     = remember { mutableStateOf(false) }
     val showHiddenSheet = remember { mutableStateOf(false) }
-    val showFoldersSheet = remember { mutableStateOf(false) }
-    val folderInput      = remember { mutableStateOf("") }
+    val showFolderSheet = remember { mutableStateOf(false) }
+    val folderInput     = remember { mutableStateOf("") }
 
     Column(
         modifier = modifier
@@ -351,6 +352,93 @@ fun SettingsScreen(
         }
 
         // ════════════════════════════════════════════════════════════════════
+        // REPRODUCCIÓN Y CARPETAS
+        // ════════════════════════════════════════════════════════════════════
+        SectionHeader("REPRODUCCIÓN Y CARPETAS")
+        SettingsGroup {
+            SettingsToggleRow(
+                icon            = Icons.Filled.NotificationsActive,
+                iconColor       = Color(0xFF34C759),
+                title           = "Shuffle por defecto",
+                subtitle        = "Activa la reproducción aleatoria al iniciar listas y álbumes.",
+                checked         = shuffleEnabled,
+                onCheckedChange = onShuffleChange
+            )
+            RowDivider()
+            SettingsToggleRow(
+                icon            = Icons.Filled.MusicNote,
+                iconColor       = Color(0xFF0A84FF),
+                title           = "Reanudar reproducción",
+                subtitle        = "Recupera la lista, la canción y la posición al volver a abrir la app.",
+                checked         = resumePlaybackEnabled,
+                onCheckedChange = onResumePlaybackChange
+            )
+            RowDivider()
+            SettingsToggleRow(
+                icon            = Icons.Filled.Translate,
+                iconColor       = Color(0xFFFF9500),
+                title           = "Crossfade",
+                subtitle        = "Aplica una transición suave entre canciones.",
+                checked         = crossfadeEnabled,
+                onCheckedChange = onCrossfadeChange
+            )
+            if (crossfadeEnabled) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text("Duración: ${crossfadeDurationMs} ms", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(600, 900, 1200, 1800).forEach { value ->
+                            FilledTonalButton(onClick = { onCrossfadeDurationChange(value) }) {
+                                Text("${value / 1000.0} s")
+                            }
+                        }
+                    }
+                }
+            }
+            RowDivider()
+            SettingsToggleRow(
+                icon            = Icons.Filled.Lock,
+                iconColor       = Color(0xFF5856D6),
+                title           = "Sleep timer",
+                subtitle        = if (sleepTimerEnabled) "Activo: ${sleepTimerMinutes} min" else "Apaga la reproducción tras un tiempo definido.",
+                checked         = sleepTimerEnabled,
+                onCheckedChange = { enabled ->
+                    if (enabled) onStartSleepTimer(sleepTimerMinutes) else onCancelSleepTimer()
+                }
+            )
+            if (sleepTimerEnabled) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(15, 30, 45, 60, 90).forEach { value ->
+                            OutlinedButton(onClick = { onStartSleepTimer(value) }) {
+                                Text("${value} min")
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = onCancelSleepTimer) { Text("Desactivar temporizador") }
+                }
+            }
+            RowDivider()
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text("Carpetas ocultas", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
+                Text(
+                    if (hiddenFolders.isEmpty()) "No hay carpetas ocultas" else hiddenFolders.joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { showFolderSheet.value = true }) { Text("Gestionar") }
+                    if (hiddenFolders.isNotEmpty()) {
+                        OutlinedButton(onClick = onClearHiddenFolders) { Text("Limpiar") }
+                    }
+                }
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
         // LETRAS Y AUDIO
         // ════════════════════════════════════════════════════════════════════
         SectionHeader("LETRAS Y AUDIO")
@@ -385,22 +473,6 @@ fun SettingsScreen(
                 checked         = libraryChangeNotificationsEnabled,
                 onCheckedChange = onLibraryChangeNotificationsChange
             )
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        // REPRODUCCIÓN
-        // ════════════════════════════════════════════════════════════════════
-        SectionHeader("REPRODUCCIÓN")
-        SettingsGroup {
-            SettingsToggleRow(Icons.Filled.PlayArrow, Color(0xFF34C759), "Modo aleatorio", "Reproduce la cola en orden aleatorio.", shuffleEnabled, onShuffleChange)
-            RowDivider()
-            SettingsToggleRow(Icons.Filled.PlayArrow, Color(0xFF5856D6), "Crossfade", "Suaviza la transición entre canciones.", crossfadeEnabled, onCrossfadeChange)
-            RowDivider()
-            SettingsInfoRow(Icons.Filled.MusicNote, Color(0xFFFF9500), "Duración crossfade", "${crossfadeDurationMs / 1000}s")
-            RowDivider()
-            SettingsToggleRow(Icons.Filled.RestoreFromTrash, Color(0xFF007AFF), "Reanudar reproducción", "Abre la última canción donde quedó.", resumePlaybackEnabled, onResumePlaybackChange)
-            RowDivider()
-            SettingsToggleRow(Icons.Filled.Info, Color(0xFF34C759), "Sleep timer", if (sleepTimerEnabled) "Se apagará en $sleepTimerMinutes min" else "Se apaga la reproducción después de un tiempo.", sleepTimerEnabled, onSleepTimerEnabledChange)
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -459,49 +531,8 @@ fun SettingsScreen(
                     )
                 }
             }
-
-            RowDivider()
-
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { showFoldersSheet.value = true }.padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SettingsIcon(Icons.Filled.Lock, Color(0xFF5856D6))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Carpetas ocultas", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
-                    Text(if (hiddenFolderPaths.isEmpty()) "No hay carpetas ocultas" else "${hiddenFolderPaths.size} carpeta${if (hiddenFolderPaths.size != 1) "s" else ""} oculta${if (hiddenFolderPaths.size != 1) "s" else ""}", style = MaterialTheme.typography.bodySmall, color = if (hiddenFolderPaths.isNotEmpty()) Color(0xFF5856D6) else MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f), modifier = Modifier.size(20.dp))
-            }
         }
 
-
-    if (showFoldersSheet.value) {
-        ModalBottomSheet(onDismissRequest = { showFoldersSheet.value = false }) {
-            Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Carpetas ocultas", style = MaterialTheme.typography.titleLarge)
-                OutlinedTextField(
-                    value = folderInput.value,
-                    onValueChange = { folderInput.value = it },
-                    label = { Text("Ruta de carpeta") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Button(onClick = { if (folderInput.value.isNotBlank()) { onHiddenFolderAdd(folderInput.value.trim()); folderInput.value = "" } }) { Text("Ocultar carpeta") }
-                if (hiddenFolderPaths.isNotEmpty()) {
-                    hiddenFolderPaths.forEach { path ->
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(path, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { onHiddenFolderRemove(path) }) { Text("Mostrar") }
-                        }
-                    }
-                    TextButton(onClick = onHiddenFolderClear) { Text("Limpiar lista") }
-                }
-                Spacer(Modifier.height(24.dp))
-            }
-        }
-    }
         // ════════════════════════════════════════════════════════════════════
         // SOBRE LA APP
         // ════════════════════════════════════════════════════════════════════
@@ -656,6 +687,42 @@ fun SettingsScreen(
             },
             onDismiss       = { showHiddenSheet.value = false }
         )
+    }
+
+    if (showFolderSheet.value) {
+        Dialog(onDismissRequest = { showFolderSheet.value = false }) {
+            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Gestionar carpetas ocultas", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = folderInput.value,
+                        onValueChange = { folderInput.value = it },
+                        label = { Text("Ruta de carpeta") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            if (folderInput.value.isNotBlank()) {
+                                onAddHiddenFolder(folderInput.value)
+                                folderInput.value = ""
+                            }
+                        }) { Text("Ocultar") }
+                        OutlinedButton(onClick = { showFolderSheet.value = false }) { Text("Cerrar") }
+                    }
+                    if (hiddenFolders.isNotEmpty()) {
+                        LazyColumn(modifier = Modifier.heightIn(max = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(hiddenFolders, key = { it }) { folder ->
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(folder, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    TextButton(onClick = { onRemoveHiddenFolder(folder) }) { Text("Quitar") }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ── Terms & Conditions full-screen dialog ────────────────────────────────

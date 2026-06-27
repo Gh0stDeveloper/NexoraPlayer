@@ -20,9 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Settings
@@ -48,7 +46,6 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nexora.player.data.local.FavoriteMediaEntity
 import com.nexora.player.data.local.PlaylistEntity
-import com.nexora.player.data.model.SmartPlaylists
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.AppDestination
 import com.nexora.player.data.model.AppLanguage
@@ -62,7 +59,6 @@ import com.nexora.player.ui.screens.MusicScreen
 import com.nexora.player.ui.screens.NowPlayingScreen
 import com.nexora.player.ui.screens.PlaylistDetailScreen
 import com.nexora.player.ui.screens.PlaylistsScreen
-import com.nexora.player.ui.screens.QueueScreen
 import com.nexora.player.ui.screens.SearchResultsScreen
 import com.nexora.player.ui.screens.SettingsScreen
 import com.nexora.player.ui.screens.VideoScreen
@@ -112,7 +108,6 @@ class MainActivity : AppCompatActivity() {
                 val destinations = listOf(
                     AppDestination.MUSIC,
                     AppDestination.VIDEOS,
-                    AppDestination.QUEUE,
                     AppDestination.PLAYLISTS,
                     AppDestination.FAVORITES,
                     AppDestination.SETTINGS
@@ -257,7 +252,10 @@ private fun AppContent(
                 onBack = onClosePlaylist,
                 onPlayItem = viewModel::playPlaylistQueue,
                 onRemoveItem = { viewModel.removeFromPlaylist(it.id) },
-                onAddSong = { song -> viewModel.addToPlaylist(playlist, song) }
+                onAddSongs = { songs ->
+                    viewModel.addToPlaylist(playlist, songs)
+                },
+                isAutoPlaylist = playlist.id < 0
             )
             return
         } else {
@@ -284,7 +282,6 @@ private fun DestinationPagerContent(
     val destinations = listOf(
         AppDestination.MUSIC,
         AppDestination.VIDEOS,
-        AppDestination.QUEUE,
         AppDestination.PLAYLISTS,
         AppDestination.FAVORITES,
         AppDestination.SETTINGS
@@ -338,15 +335,6 @@ private fun DestinationPagerContent(
                 onSortSelected = viewModel::setVideoSort
             )
 
-            AppDestination.QUEUE -> QueueScreen(
-                modifier = Modifier.fillMaxSize(),
-                queue = state.queue,
-                currentIndex = state.queueIndex,
-                onPlayItem = viewModel::jumpToQueueIndex,
-                onRemoveItem = viewModel::removeQueueIndex,
-                onClearQueue = viewModel::clearQueue
-            )
-
             AppDestination.PLAYLISTS -> PlaylistsScreen(
                 modifier = Modifier.fillMaxSize(),
                 playlists = state.playlists,
@@ -368,50 +356,40 @@ private fun DestinationPagerContent(
                 themeMode = state.preferences.themeMode,
                 dynamicColor = state.preferences.dynamicColor,
                 hiddenAudioCount = state.preferences.hiddenAudioIds.size,
-                hiddenFolderPaths = state.preferences.hiddenFolderPaths,
                 onlineMusicSearchEnabled = state.preferences.onlineMusicSearchEnabled,
                 lyricsTranslationEnabled = state.preferences.lyricsTranslationEnabled,
                 volumeBoostEnabled = state.preferences.volumeBoostEnabled,
+                libraryChangeNotificationsEnabled = state.preferences.libraryChangeNotificationsEnabled,
                 shuffleEnabled = state.preferences.shuffleEnabled,
+                resumePlaybackEnabled = state.preferences.resumePlaybackEnabled,
                 crossfadeEnabled = state.preferences.crossfadeEnabled,
                 crossfadeDurationMs = state.preferences.crossfadeDurationMs,
                 sleepTimerEnabled = state.preferences.sleepTimerEnabled,
                 sleepTimerMinutes = state.preferences.sleepTimerMinutes,
-                resumePlaybackEnabled = state.preferences.resumePlaybackEnabled,
-                libraryChangeNotificationsEnabled = state.preferences.libraryChangeNotificationsEnabled,
+                hiddenFolders = state.preferences.hiddenFolders.toList(),
                 currentLanguage = rememberAppLanguage(),
                 onThemeChange = viewModel::setThemeMode,
                 onDynamicColorChange = viewModel::setDynamicColor,
                 onOnlineMusicSearchChange = viewModel::setOnlineMusicSearchEnabled,
                 onLyricsTranslationChange = viewModel::setLyricsTranslationEnabled,
                 onVolumeBoostChange = viewModel::setVolumeBoostEnabled,
+                onLibraryChangeNotificationsChange = viewModel::setLibraryChangeNotificationsEnabled,
                 onShuffleChange = viewModel::setShuffleEnabled,
+                onResumePlaybackChange = viewModel::setResumePlaybackEnabled,
                 onCrossfadeChange = viewModel::setCrossfadeEnabled,
                 onCrossfadeDurationChange = viewModel::setCrossfadeDurationMs,
-                onSleepTimerEnabledChange = viewModel::setSleepTimerEnabled,
-                onSleepTimerMinutesChange = viewModel::setSleepTimerMinutes,
-                onResumePlaybackChange = viewModel::setResumePlaybackEnabled,
-                onLibraryChangeNotificationsChange = viewModel::setLibraryChangeNotificationsEnabled,
+                onStartSleepTimer = viewModel::startSleepTimer,
+                onCancelSleepTimer = viewModel::cancelSleepTimer,
                 onLanguageChange = ::applyLanguage,
                 onRestoreHiddenAudio = viewModel::restoreHiddenAudio,
-                onHiddenFolderAdd = viewModel::addHiddenFolderPath,
-                onHiddenFolderRemove = viewModel::removeHiddenFolderPath,
-                onHiddenFolderClear = viewModel::clearHiddenFolderPaths
+                onAddHiddenFolder = viewModel::addHiddenFolder,
+                onRemoveHiddenFolder = viewModel::removeHiddenFolder,
+                onClearHiddenFolders = viewModel::clearHiddenFolders
             )
         }
     }
 }
 private fun FavoriteMediaEntity.toMediaEntry(): MediaEntry = MediaEntry(
-    id = mediaId,
-    kind = if (mediaKind == MediaKind.VIDEO.name) MediaKind.VIDEO else MediaKind.AUDIO,
-    uri = android.net.Uri.parse(uriString),
-    title = title,
-    album = album,
-    artist = artist,
-    durationMs = durationMs
-)
-
-private fun PlaybackHistoryEntity.toMediaEntry(): MediaEntry = MediaEntry(
     id = mediaId,
     kind = if (mediaKind == MediaKind.VIDEO.name) MediaKind.VIDEO else MediaKind.AUDIO,
     uri = android.net.Uri.parse(uriString),
@@ -448,9 +426,7 @@ private fun applyLanguage(language: AppLanguage) {
 private fun iconFor(destination: AppDestination) = when (destination) {
     AppDestination.MUSIC -> Icons.Filled.LibraryMusic
     AppDestination.VIDEOS -> Icons.Filled.Movie
-    AppDestination.QUEUE -> Icons.AutoMirrored.Filled.QueueMusic
     AppDestination.PLAYLISTS -> Icons.AutoMirrored.Filled.PlaylistPlay
     AppDestination.FAVORITES -> Icons.Filled.Favorite
-    AppDestination.HISTORY -> Icons.Filled.History
     AppDestination.SETTINGS -> Icons.Filled.Settings
 }

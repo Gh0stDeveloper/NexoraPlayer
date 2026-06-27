@@ -4,7 +4,10 @@ import android.net.Uri
 import androidx.annotation.StringRes
 import com.nexora.player.R
 
-enum class MediaKind { AUDIO, VIDEO }
+enum class MediaKind {
+    AUDIO,
+    VIDEO
+}
 
 enum class SortMode(@StringRes val labelRes: Int) {
     DATE_ADDED_DESC(R.string.sort_date_added_desc),
@@ -15,14 +18,19 @@ enum class SortMode(@StringRes val labelRes: Int) {
     DURATION_DESC(R.string.sort_duration_desc),
     ARTIST_ASC(R.string.sort_artist_asc),
     ALBUM_ASC(R.string.sort_album_asc),
-    FOLDER_ASC(R.string.sort_folder_asc),
+    FOLDER_ASC(R.string.sort_path_asc),
+    FOLDER_DESC(R.string.sort_path_desc),
     SIZE_ASC(R.string.sort_size_asc),
     SIZE_DESC(R.string.sort_size_desc),
     RESOLUTION_ASC(R.string.sort_resolution_asc),
     RESOLUTION_DESC(R.string.sort_resolution_desc)
 }
 
-enum class AppThemeMode { SYSTEM, LIGHT, DARK }
+enum class AppThemeMode {
+    SYSTEM,
+    LIGHT,
+    DARK
+}
 
 enum class AppLanguage(@StringRes val labelRes: Int, val tag: String?) {
     SYSTEM(R.string.language_system, null),
@@ -73,9 +81,7 @@ data class MediaEntry(
 data class PlaybackSnapshot(
     val queue: List<MediaEntry> = emptyList(),
     val currentIndex: Int = -1,
-    val isPlaying: Boolean = false,
-    val currentPositionMs: Long = 0L,
-    val shuffleEnabled: Boolean = false
+    val isPlaying: Boolean = false
 ) {
     val currentItem: MediaEntry?
         get() = queue.getOrNull(currentIndex)
