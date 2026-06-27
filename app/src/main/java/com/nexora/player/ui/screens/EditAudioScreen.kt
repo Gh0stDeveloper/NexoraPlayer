@@ -89,7 +89,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.roundToInt
-import org.jaudiotagger.tag.images.PictureTypes
 
 // ── Edit dialog ───────────────────────────────────────────────────────────────
 
