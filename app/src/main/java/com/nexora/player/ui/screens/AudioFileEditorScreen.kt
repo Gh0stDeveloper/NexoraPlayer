@@ -12,7 +12,7 @@ import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.images.ArtworkFactory
-import org.jaudiotagger.tag.images.PictureTypes
+import org.jaudiotagger.tag.images.ImageFormats
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -187,15 +187,16 @@ object AudioFileEditor {
             tag.setField(FieldKey.ALBUM,  album.trim().ifBlank { " " })
 
             if (artworkBitmap != null) {
-                val bytes = ByteArrayOutputStream().apply {
-                    artworkBitmap.compress(Bitmap.CompressFormat.JPEG, 90, this)
+                val bytes = ByteArrayOutputStream().also { bos ->
+                    artworkBitmap.compress(Bitmap.CompressFormat.JPEG, 90, bos)
                 }.toByteArray()
 
-                val artwork = ArtworkFactory.getNew().apply {
-                    binaryData  = bytes
-                    mimeType    = "image/jpeg"
-                    pictureType = PictureTypes.DEFAULT_ID
-                }
+                // Build artwork without .apply{} to avoid Kotlin val/setter ambiguity
+                val artwork = ArtworkFactory.getNew()
+                artwork.binaryData  = bytes
+                artwork.mimeType    = ImageFormats.getMimeTypeForBinarySignature(bytes)
+                    ?: "image/jpeg"
+                artwork.pictureType = 3  // 3 = Front Cover (ID3 standard, replaces PictureTypes.DEFAULT_ID)
                 tag.deleteArtworkField()
                 tag.setField(artwork)
             }
