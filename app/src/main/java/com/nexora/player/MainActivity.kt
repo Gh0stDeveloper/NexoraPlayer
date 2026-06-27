@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Settings
@@ -386,6 +387,21 @@ private fun DestinationPagerContent(
                 onRemoveHiddenFolder = viewModel::removeHiddenFolder,
                 onClearHiddenFolders = viewModel::clearHiddenFolders
             )
+
+            AppDestination.QUEUE, AppDestination.HISTORY -> MusicScreen(
+                modifier = Modifier.fillMaxSize(),
+                items = viewModel.filteredAudio(),
+                favorites = viewModel.favoriteIds(),
+                playlists = state.playlists,
+                sortMode = state.audioSort,
+                onPlay = viewModel::playFromLibrary,
+                onToggleFavorite = viewModel::toggleFavorite,
+                onAddToPlaylist = viewModel::addToPlaylist,
+                onHideFromLibrary = viewModel::hideFromLibrary,
+                onDeleteFromLibrary = viewModel::deleteFromLibrary,
+                onRefresh = viewModel::refreshLibrary,
+                onSortSelected = viewModel::setAudioSort
+            )
         }
     }
 }
@@ -429,4 +445,6 @@ private fun iconFor(destination: AppDestination) = when (destination) {
     AppDestination.PLAYLISTS -> Icons.AutoMirrored.Filled.PlaylistPlay
     AppDestination.FAVORITES -> Icons.Filled.Favorite
     AppDestination.SETTINGS -> Icons.Filled.Settings
+    AppDestination.QUEUE -> Icons.Filled.LibraryMusic
+    AppDestination.HISTORY -> Icons.Filled.History
 }

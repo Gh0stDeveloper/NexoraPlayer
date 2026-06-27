@@ -1,7 +1,8 @@
 package com.nexora.player
 
 import android.app.Application
-import com.google.gson.Gson
+import org.json.JSONArray
+import org.json.JSONObject
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexora.player.data.local.FavoriteMediaEntity
@@ -75,7 +76,61 @@ private data class PersistedPlaybackSession(
     val currentIndex: Int,
     val positionMs: Long,
     val isPlaying: Boolean
-)
+) {
+    companion object
+}
+
+
+private fun PersistedPlaybackSession.toJsonString(): String {
+    val items = JSONArray()
+    queue.forEach { item ->
+        items.put(
+            JSONObject()
+                .put("id", item.id)
+                .put("kind", item.kind)
+                .put("uriString", item.uriString)
+                .put("title", item.title)
+                .put("artist", item.artist)
+                .put("album", item.album)
+                .put("durationMs", item.durationMs)
+                .put("folder", item.folder ?: "")
+        )
+    }
+    return JSONObject()
+        .put("queue", items)
+        .put("currentIndex", currentIndex)
+        .put("positionMs", positionMs)
+        .put("isPlaying", isPlaying)
+        .toString()
+}
+
+private fun PersistedPlaybackSession.Companion.fromJsonString(json: String): PersistedPlaybackSession {
+    val root = JSONObject(json)
+    val array = root.optJSONArray("queue") ?: JSONArray()
+    val items = buildList {
+        for (index in 0 until array.length()) {
+            val item = array.getJSONObject(index)
+            add(
+                PersistedPlaybackItem(
+                    id = item.optLong("id"),
+                    kind = item.optString("kind", MediaKind.AUDIO.name),
+                    uriString = item.optString("uriString"),
+                    title = item.optString("title"),
+                    artist = item.optString("artist"),
+                    album = item.optString("album"),
+                    durationMs = item.optLong("durationMs"),
+                    folder = item.optString("folder").takeIf { it.isNotBlank() }
+                )
+            )
+        }
+    }
+    return PersistedPlaybackSession(
+        queue = items,
+        currentIndex = root.optInt("currentIndex", 0),
+        positionMs = root.optLong("positionMs", 0L),
+        isPlaying = root.optBoolean("isPlaying", false)
+    )
+}
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -84,7 +139,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val preferencesRepository = PreferencesRepository(context)
     private val onlineRepository = OnlineMusicRepository()
     private val database = NexoraDatabase.get(context)
-    private val gson = Gson()
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
@@ -702,7 +756,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             isPlaying = snapshot.isPlaying
         )
         viewModelScope.launch {
-            preferencesRepository.setPlaybackSessionJson(gson.toJson(payload))
+            preferencesRepository.setPlaybackSessionJson(payload.toJsonString())
         }
     }
 
@@ -710,7 +764,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (resumeRestored || !prefs.resumePlaybackEnabled) return
         val json = prefs.playbackSessionJson.trim()
         if (json.isBlank()) return
-        val payload = runCatching { gson.fromJson(json, PersistedPlaybackSession::class.java) }.getOrNull() ?: return
+        val payload = runCatching { PersistedPlaybackSession.fromJsonString(json) }.getOrNull() ?: return
         if (payload.queue.isEmpty()) return
         if (PlayerEngine.snapshot.value.queue.isNotEmpty()) return
 
