@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nexora.player.data.local.PlaylistEntity
 import com.nexora.player.data.local.PlaylistItemEntity
+import com.nexora.player.data.model.SmartPlaylists
 import com.nexora.player.ui.components.MediaArtwork
 import java.text.DateFormat
 import java.util.Date
@@ -59,9 +60,7 @@ fun PlaylistsScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Button(onClick = { showDialog = true }) {
-                Text("Nueva lista")
-            }
+            Button(onClick = { showDialog = true }) { Text("Nueva lista") }
         }
 
         LazyColumn(
@@ -70,49 +69,32 @@ fun PlaylistsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(playlists, key = { it.id }) { playlist ->
-                val preview by playlistPreviewItems(playlist.id)
-                    .collectAsStateWithLifecycle(initialValue = emptyList())
-
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { onOpenPlaylist(playlist) }
-                ) {
+                val preview by playlistPreviewItems(playlist.id).collectAsStateWithLifecycle(initialValue = emptyList())
+                ElevatedCard(modifier = Modifier.fillMaxWidth(), onClick = { onOpenPlaylist(playlist) }) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
-                            modifier = Modifier.widthIn(max = 210.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(playlist.name, style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                DateFormat.getDateInstance().format(Date(playlist.createdAt)),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                if (preview.isEmpty()) "Sin canciones aún" else "Vista previa disponible",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Column(modifier = Modifier.widthIn(max = 210.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(playlist.name, style = MaterialTheme.typography.titleLarge)
+                                if (playlist.name == SmartPlaylists.MOST_PLAYED_NAME) {
+                                    Text("AUTO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                            Text(DateFormat.getDateInstance().format(Date(playlist.createdAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(if (preview.isEmpty()) "Sin canciones aún" else "Vista previa disponible", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
 
                         Spacer(modifier = Modifier.weight(1f, fill = true))
 
-                        PlaylistPreviewMosaic(
-                            items = preview,
-                            modifier = Modifier.size(112.dp)
-                        )
+                        PlaylistPreviewMosaic(items = preview, modifier = Modifier.size(112.dp))
 
-                        FilledTonalIconButton(
-                            onClick = { onDeletePlaylist(playlist) },
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Eliminar")
+                        if (playlist.name != SmartPlaylists.MOST_PLAYED_NAME) {
+                            FilledTonalIconButton(onClick = { onDeletePlaylist(playlist) }, modifier = Modifier.size(44.dp)) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Eliminar")
+                            }
                         }
                     }
                 }
@@ -134,55 +116,31 @@ fun PlaylistsScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        onCreatePlaylist(name.trim())
-                    }
+                    if (name.isNotBlank()) onCreatePlaylist(name.trim())
                     name = ""
                     showDialog = false
                 }) { Text("Crear") }
             },
-            dismissButton = {
-                TextButton(onClick = { showDialog = false }) { Text("Cancelar") }
-            }
+            dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancelar") } }
         )
     }
 }
 
 @Composable
-private fun PlaylistPreviewMosaic(
-    items: List<PlaylistItemEntity>,
-    modifier: Modifier = Modifier
-) {
+private fun PlaylistPreviewMosaic(items: List<PlaylistItemEntity>, modifier: Modifier = Modifier) {
     val preview = items.take(4)
-
-    ElevatedCard(
-        modifier = modifier.clip(RoundedCornerShape(22.dp))
-    ) {
+    ElevatedCard(modifier = modifier.clip(RoundedCornerShape(22.dp))) {
         Column(modifier = Modifier.fillMaxSize()) {
             repeat(2) { row ->
                 Row(modifier = Modifier.weight(1f)) {
                     repeat(2) { col ->
                         val index = row * 2 + col
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                        ) {
+                        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                             if (index < preview.size) {
-                                MediaArtwork(
-                                    item = preview[index].toMediaEntry(),
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                MediaArtwork(item = preview[index].toMediaEntry(), modifier = Modifier.fillMaxSize())
                             } else {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.MusicNote,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Filled.MusicNote, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -195,11 +153,7 @@ private fun PlaylistPreviewMosaic(
 
 private fun PlaylistItemEntity.toMediaEntry() = com.nexora.player.data.model.MediaEntry(
     id = mediaId,
-    kind = if (mediaKind == com.nexora.player.data.model.MediaKind.VIDEO.name) {
-        com.nexora.player.data.model.MediaKind.VIDEO
-    } else {
-        com.nexora.player.data.model.MediaKind.AUDIO
-    },
+    kind = if (mediaKind == com.nexora.player.data.model.MediaKind.VIDEO.name) com.nexora.player.data.model.MediaKind.VIDEO else com.nexora.player.data.model.MediaKind.AUDIO,
     uri = android.net.Uri.parse(uriString),
     title = title,
     artist = artist,

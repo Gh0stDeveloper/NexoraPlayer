@@ -207,9 +207,16 @@ fun SettingsScreen(
     dynamicColor: Boolean,
     hiddenAudioCount: Int,
     hiddenAudioItems: List<HiddenAudioItem> = emptyList(),
+    hiddenFolderPaths: Set<String> = emptySet(),
     onlineMusicSearchEnabled: Boolean,
     lyricsTranslationEnabled: Boolean,
     volumeBoostEnabled: Boolean,
+    shuffleEnabled: Boolean,
+    crossfadeEnabled: Boolean,
+    crossfadeDurationMs: Int,
+    sleepTimerEnabled: Boolean,
+    sleepTimerMinutes: Int,
+    resumePlaybackEnabled: Boolean,
     libraryChangeNotificationsEnabled: Boolean,
     currentLanguage: AppLanguage,
     onThemeChange: (AppThemeMode) -> Unit,
@@ -217,15 +224,26 @@ fun SettingsScreen(
     onOnlineMusicSearchChange: (Boolean) -> Unit,
     onLyricsTranslationChange: (Boolean) -> Unit,
     onVolumeBoostChange: (Boolean) -> Unit,
+    onShuffleChange: (Boolean) -> Unit,
+    onCrossfadeChange: (Boolean) -> Unit,
+    onCrossfadeDurationChange: (Int) -> Unit,
+    onSleepTimerEnabledChange: (Boolean) -> Unit,
+    onSleepTimerMinutesChange: (Int) -> Unit,
+    onResumePlaybackChange: (Boolean) -> Unit,
     onLibraryChangeNotificationsChange: (Boolean) -> Unit,
     onLanguageChange: (AppLanguage) -> Unit,
     onRestoreHiddenAudio: () -> Unit,
+    onHiddenFolderAdd: (String) -> Unit,
+    onHiddenFolderRemove: (String) -> Unit,
+    onHiddenFolderClear: () -> Unit,
     onRestoreHiddenItem: (Long) -> Unit = {}
 ) {
     val uriHandler      = LocalUriHandler.current
     val showTerms       = remember { mutableStateOf(false) }
     val showPrivacy     = remember { mutableStateOf(false) }
     val showHiddenSheet = remember { mutableStateOf(false) }
+    val showFoldersSheet = remember { mutableStateOf(false) }
+    val folderInput      = remember { mutableStateOf("") }
 
     Column(
         modifier = modifier
@@ -370,6 +388,22 @@ fun SettingsScreen(
         }
 
         // ════════════════════════════════════════════════════════════════════
+        // REPRODUCCIÓN
+        // ════════════════════════════════════════════════════════════════════
+        SectionHeader("REPRODUCCIÓN")
+        SettingsGroup {
+            SettingsToggleRow(Icons.Filled.PlayArrow, Color(0xFF34C759), "Modo aleatorio", "Reproduce la cola en orden aleatorio.", shuffleEnabled, onShuffleChange)
+            RowDivider()
+            SettingsToggleRow(Icons.Filled.PlayArrow, Color(0xFF5856D6), "Crossfade", "Suaviza la transición entre canciones.", crossfadeEnabled, onCrossfadeChange)
+            RowDivider()
+            SettingsInfoRow(Icons.Filled.MusicNote, Color(0xFFFF9500), "Duración crossfade", "${crossfadeDurationMs / 1000}s")
+            RowDivider()
+            SettingsToggleRow(Icons.Filled.RestoreFromTrash, Color(0xFF007AFF), "Reanudar reproducción", "Abre la última canción donde quedó.", resumePlaybackEnabled, onResumePlaybackChange)
+            RowDivider()
+            SettingsToggleRow(Icons.Filled.Info, Color(0xFF34C759), "Sleep timer", if (sleepTimerEnabled) "Se apagará en $sleepTimerMinutes min" else "Se apaga la reproducción después de un tiempo.", sleepTimerEnabled, onSleepTimerEnabledChange)
+        }
+
+        // ════════════════════════════════════════════════════════════════════
         // BIBLIOTECA
         // ════════════════════════════════════════════════════════════════════
         SectionHeader("BIBLIOTECA")
@@ -425,8 +459,49 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            RowDivider()
+
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { showFoldersSheet.value = true }.padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SettingsIcon(Icons.Filled.Lock, Color(0xFF5856D6))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Carpetas ocultas", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
+                    Text(if (hiddenFolderPaths.isEmpty()) "No hay carpetas ocultas" else "${hiddenFolderPaths.size} carpeta${if (hiddenFolderPaths.size != 1) "s" else ""} oculta${if (hiddenFolderPaths.size != 1) "s" else ""}", style = MaterialTheme.typography.bodySmall, color = if (hiddenFolderPaths.isNotEmpty()) Color(0xFF5856D6) else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f), modifier = Modifier.size(20.dp))
+            }
         }
 
+
+    if (showFoldersSheet.value) {
+        ModalBottomSheet(onDismissRequest = { showFoldersSheet.value = false }) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Carpetas ocultas", style = MaterialTheme.typography.titleLarge)
+                OutlinedTextField(
+                    value = folderInput.value,
+                    onValueChange = { folderInput.value = it },
+                    label = { Text("Ruta de carpeta") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(onClick = { if (folderInput.value.isNotBlank()) { onHiddenFolderAdd(folderInput.value.trim()); folderInput.value = "" } }) { Text("Ocultar carpeta") }
+                if (hiddenFolderPaths.isNotEmpty()) {
+                    hiddenFolderPaths.forEach { path ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(path, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { onHiddenFolderRemove(path) }) { Text("Mostrar") }
+                        }
+                    }
+                    TextButton(onClick = onHiddenFolderClear) { Text("Limpiar lista") }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
         // ════════════════════════════════════════════════════════════════════
         // SOBRE LA APP
         // ════════════════════════════════════════════════════════════════════

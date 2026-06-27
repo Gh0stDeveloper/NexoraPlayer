@@ -27,7 +27,7 @@ class MediaStoreRepository(private val context: Context) {
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
-        val sort = sortClause(sortMode, mediaKind = MediaKind.AUDIO)
+        val sort = sortClause(sortMode, MediaKind.AUDIO)
 
         context.contentResolver.query(collection, projection, selection, null, sort)?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -81,7 +81,7 @@ class MediaStoreRepository(private val context: Context) {
             MediaStore.Video.Media.RELATIVE_PATH
         )
 
-        val sort = sortClause(sortMode, mediaKind = MediaKind.VIDEO)
+        val sort = sortClause(sortMode, MediaKind.VIDEO)
 
         context.contentResolver.query(collection, projection, null, null, sort)?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
@@ -124,6 +124,7 @@ class MediaStoreRepository(private val context: Context) {
         SortMode.DURATION_DESC -> "duration DESC"
         SortMode.ARTIST_ASC -> if (mediaKind == MediaKind.AUDIO) "artist COLLATE NOCASE ASC" else "date_added DESC"
         SortMode.ALBUM_ASC -> if (mediaKind == MediaKind.AUDIO) "album COLLATE NOCASE ASC" else "date_added DESC"
+        SortMode.FOLDER_ASC -> "relative_path COLLATE NOCASE ASC"
         SortMode.SIZE_ASC -> "size ASC"
         SortMode.SIZE_DESC -> "size DESC"
         SortMode.RESOLUTION_ASC -> if (mediaKind == MediaKind.VIDEO) "height ASC" else "date_added DESC"

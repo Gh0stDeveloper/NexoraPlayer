@@ -47,8 +47,8 @@ import androidx.core.os.LocaleListCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nexora.player.data.local.FavoriteMediaEntity
-import com.nexora.player.data.local.PlaybackHistoryEntity
 import com.nexora.player.data.local.PlaylistEntity
+import com.nexora.player.data.model.SmartPlaylists
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.AppDestination
 import com.nexora.player.data.model.AppLanguage
@@ -58,7 +58,6 @@ import com.nexora.player.ui.components.BottomPlayerBar
 import com.nexora.player.ui.components.ux.IosBottomTabBar
 import com.nexora.player.ui.components.GreetingBanner
 import com.nexora.player.ui.screens.FavoritesScreen
-import com.nexora.player.ui.screens.HistoryScreen
 import com.nexora.player.ui.screens.MusicScreen
 import com.nexora.player.ui.screens.NowPlayingScreen
 import com.nexora.player.ui.screens.PlaylistDetailScreen
@@ -116,7 +115,6 @@ class MainActivity : AppCompatActivity() {
                     AppDestination.QUEUE,
                     AppDestination.PLAYLISTS,
                     AppDestination.FAVORITES,
-                    AppDestination.HISTORY,
                     AppDestination.SETTINGS
                 )
 
@@ -259,9 +257,7 @@ private fun AppContent(
                 onBack = onClosePlaylist,
                 onPlayItem = viewModel::playPlaylistQueue,
                 onRemoveItem = { viewModel.removeFromPlaylist(it.id) },
-                onAddSong = { song ->
-                    viewModel.addToPlaylist(playlist, song)
-                }
+                onAddSong = { song -> viewModel.addToPlaylist(playlist, song) }
             )
             return
         } else {
@@ -291,7 +287,6 @@ private fun DestinationPagerContent(
         AppDestination.QUEUE,
         AppDestination.PLAYLISTS,
         AppDestination.FAVORITES,
-        AppDestination.HISTORY,
         AppDestination.SETTINGS
     )
 
@@ -368,20 +363,21 @@ private fun DestinationPagerContent(
                 onToggleFavorite = { favorite -> viewModel.toggleFavorite(favorite.toMediaEntry()) }
             )
 
-            AppDestination.HISTORY -> HistoryScreen(
-                modifier = Modifier.fillMaxSize(),
-                history = state.history,
-                onPlayItem = { historyItem -> viewModel.play(historyItem.toMediaEntry()) }
-            )
-
             AppDestination.SETTINGS -> SettingsScreen(
                 modifier = Modifier.fillMaxSize(),
                 themeMode = state.preferences.themeMode,
                 dynamicColor = state.preferences.dynamicColor,
                 hiddenAudioCount = state.preferences.hiddenAudioIds.size,
+                hiddenFolderPaths = state.preferences.hiddenFolderPaths,
                 onlineMusicSearchEnabled = state.preferences.onlineMusicSearchEnabled,
                 lyricsTranslationEnabled = state.preferences.lyricsTranslationEnabled,
                 volumeBoostEnabled = state.preferences.volumeBoostEnabled,
+                shuffleEnabled = state.preferences.shuffleEnabled,
+                crossfadeEnabled = state.preferences.crossfadeEnabled,
+                crossfadeDurationMs = state.preferences.crossfadeDurationMs,
+                sleepTimerEnabled = state.preferences.sleepTimerEnabled,
+                sleepTimerMinutes = state.preferences.sleepTimerMinutes,
+                resumePlaybackEnabled = state.preferences.resumePlaybackEnabled,
                 libraryChangeNotificationsEnabled = state.preferences.libraryChangeNotificationsEnabled,
                 currentLanguage = rememberAppLanguage(),
                 onThemeChange = viewModel::setThemeMode,
@@ -389,9 +385,18 @@ private fun DestinationPagerContent(
                 onOnlineMusicSearchChange = viewModel::setOnlineMusicSearchEnabled,
                 onLyricsTranslationChange = viewModel::setLyricsTranslationEnabled,
                 onVolumeBoostChange = viewModel::setVolumeBoostEnabled,
+                onShuffleChange = viewModel::setShuffleEnabled,
+                onCrossfadeChange = viewModel::setCrossfadeEnabled,
+                onCrossfadeDurationChange = viewModel::setCrossfadeDurationMs,
+                onSleepTimerEnabledChange = viewModel::setSleepTimerEnabled,
+                onSleepTimerMinutesChange = viewModel::setSleepTimerMinutes,
+                onResumePlaybackChange = viewModel::setResumePlaybackEnabled,
                 onLibraryChangeNotificationsChange = viewModel::setLibraryChangeNotificationsEnabled,
                 onLanguageChange = ::applyLanguage,
-                onRestoreHiddenAudio = viewModel::restoreHiddenAudio
+                onRestoreHiddenAudio = viewModel::restoreHiddenAudio,
+                onHiddenFolderAdd = viewModel::addHiddenFolderPath,
+                onHiddenFolderRemove = viewModel::removeHiddenFolderPath,
+                onHiddenFolderClear = viewModel::clearHiddenFolderPaths
             )
         }
     }
