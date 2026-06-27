@@ -23,6 +23,9 @@ interface PlaylistsDao {
     @Query("SELECT * FROM playlists ORDER BY updatedAt DESC")
     fun observePlaylists(): Flow<List<PlaylistEntity>>
 
+    @Query("SELECT * FROM playlists WHERE name = :name LIMIT 1")
+    suspend fun getPlaylistByName(name: String): PlaylistEntity?
+
     @Query("SELECT * FROM playlist_items WHERE playlistId = :playlistId ORDER BY orderIndex ASC, addedAt ASC")
     fun observeItems(playlistId: Long): Flow<List<PlaylistItemEntity>>
 
@@ -65,7 +68,6 @@ interface HistoryDao {
     @Query("DELETE FROM playback_history WHERE mediaId = :mediaId")
     suspend fun deleteByMediaId(mediaId: Long)
 }
-
 
 @Dao
 interface OnlineSavedTracksDao {

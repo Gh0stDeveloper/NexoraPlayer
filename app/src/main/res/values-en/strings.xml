@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">Nexora Player</string>
-    <string name="app_tagline">Compact interface, local library, immersive playback.</string>
+    <string name="app_tagline">By Ghost Developer.</string>
 
     <string name="greeting_morning">Good morning</string>
     <string name="greeting_afternoon">Good afternoon</string>
@@ -28,7 +28,6 @@
     <string name="sort_artist_asc">Artist</string>
     <string name="sort_album_asc">Album</string>
     <string name="sort_folder_asc">Folder</string>
-    <string name="sort_size_asc">Album</string>
     <string name="sort_size_asc">Size: small</string>
     <string name="sort_size_desc">Size: large</string>
     <string name="sort_resolution_asc">Resolution: low</string>

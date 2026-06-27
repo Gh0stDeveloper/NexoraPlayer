@@ -39,7 +39,6 @@ data class PlaylistItemEntity(
     val addedAt: Long = System.currentTimeMillis()
 )
 
-
 @Entity(tableName = "online_saved_tracks", indices = [androidx.room.Index(value = ["providerId", "sourceId"], unique = true)])
 data class OnlineSavedTrackEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
