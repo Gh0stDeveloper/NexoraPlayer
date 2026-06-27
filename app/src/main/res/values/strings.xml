@@ -27,6 +27,8 @@
     <string name="sort_duration_desc">Duración: larga</string>
     <string name="sort_artist_asc">Artista</string>
     <string name="sort_album_asc">Álbum</string>
+    <string name="sort_path_asc">Ruta: A-Z</string>
+    <string name="sort_path_desc">Ruta: Z-A</string>
     <string name="sort_size_asc">Tamaño: pequeño</string>
     <string name="sort_size_desc">Tamaño: grande</string>
     <string name="sort_resolution_asc">Resolución: baja</string>
