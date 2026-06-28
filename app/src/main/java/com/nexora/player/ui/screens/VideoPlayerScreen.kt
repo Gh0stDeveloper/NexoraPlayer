@@ -305,11 +305,11 @@ fun VideoPlayerScreen(
 
     val durationMs       = exoPlayer.duration.takeIf { it > 0L } ?: currentItem.durationMs
     val queue            = snapshot.queue
-    val queueFromCurrent = remember(snapshot.queue, snapshot.currentIndex) {
-        if (snapshot.currentIndex in queue.indices) queue.drop(snapshot.currentIndex + 1)
-        else queue.drop(1)
-    }
-    val queueStartIndex = if (snapshot.currentIndex in queue.indices) snapshot.currentIndex + 1 else 1
+    // Mostrar la lista completa de videos disponible en la cola. Antes se mostraban
+    // solo unos pocos elementos posteriores al actual, lo que hacía que
+    // “A continuación” pareciera incompleto.
+    val queueFromCurrent = queue
+    val queueStartIndex = 0
 
     if (isLandscape) {
         LandscapeScreen(
@@ -754,7 +754,7 @@ private fun PortraitScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Continuará",
+                            "Lista de videos",
                             color      = Color.White,
                             fontWeight = FontWeight.SemiBold,
                             fontSize   = 14.sp
@@ -767,7 +767,7 @@ private fun PortraitScreen(
                         )
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        itemsIndexed(queueFromCurrent.take(8)) { index, item ->
+                        itemsIndexed(queueFromCurrent) { index, item ->
                             QueueItemCard(
                                 item    = item,
                                 index   = queueStartIndex + index,
@@ -1164,7 +1164,7 @@ private fun LandscapeControls(
             // Cola preview
             if (queueFromCurrent.isNotEmpty()) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    itemsIndexed(queueFromCurrent.take(5)) { index, item ->
+                    itemsIndexed(queueFromCurrent) { index, item ->
                         QueueItemCard(
                             item    = item,
                             index   = queueStartIndex + index,

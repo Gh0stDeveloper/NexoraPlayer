@@ -190,6 +190,17 @@ private fun displayLyricsLines(rawText: String?): List<String> {
         .filter { it.isNotBlank() }
 }
 
+private fun syncedLyricsLines(rawText: String?): List<LrcLine> =
+    parseLrcLines(rawText).filter { it.text.isNotBlank() }
+
+private fun safeCurrentLyricsIndex(lines: List<LrcLine>, positionMs: Long, displaySize: Int): Int {
+    if (displaySize <= 0) return -1
+    if (lines.isEmpty()) return 0
+    val rawIndex = lines.indexOfLast { it.timestampMs <= positionMs }
+        .let { if (it < 0) 0 else it }
+    return rawIndex.coerceIn(0, displaySize - 1)
+}
+
 // ---------------------------------------------------------------------------
 // Main screen
 // ---------------------------------------------------------------------------
@@ -305,9 +316,13 @@ fun AudioPlayerScreen(
         }
     }
 
-    LaunchedEffect(current?.id, allowOnlineLyrics) {
+    LaunchedEffect(current?.id, current?.kind, allowOnlineLyrics) {
         val item = current
-        if (item == null) { lyrics = null; lyricsLoading = false; return@LaunchedEffect }
+        if (item == null || item.kind != MediaKind.AUDIO) {
+            lyrics = null
+            lyricsLoading = false
+            return@LaunchedEffect
+        }
         lyricsLoading = true
         lyrics = null
         lyrics = runCatching {
@@ -554,17 +569,20 @@ fun AudioPlayerScreen(
                 HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
                 Spacer(Modifier.height(20.dp))
 
-                // ── Lyrics section (inline, scrollable with the rest) ──
-                InlineLyricsSection(
-                    lyrics            = lyrics,
-                    translatedRawText  = translatedRawLyrics,
-                    lyricsLoading     = lyricsLoading,
-                    positionMs        = positionMs,
-                    onSearchOnline    = { allowOnlineLyrics = true },
-                    onEdit            = { showLyricsEditor = true },
-                    onExpand          = { showLyricsSheet = true },
-                    modifier          = Modifier.fillMaxWidth()
-                )
+                // ── Lyrics section: only audio gets lyrics. This prevents video playback
+                //    from recomposing the lyric preview with stale audio lyric indexes.
+                if (current.kind == MediaKind.AUDIO) {
+                    InlineLyricsSection(
+                        lyrics            = lyrics,
+                        translatedRawText  = translatedRawLyrics,
+                        lyricsLoading     = lyricsLoading,
+                        positionMs        = positionMs,
+                        onSearchOnline    = { allowOnlineLyrics = true },
+                        onEdit            = { showLyricsEditor = true },
+                        onExpand          = { showLyricsSheet = true },
+                        modifier          = Modifier.fillMaxWidth()
+                    )
+                }
 
                 Spacer(Modifier.height(48.dp))
             }
@@ -583,7 +601,7 @@ fun AudioPlayerScreen(
         )
     }
 
-    if (showLyricsSheet && current != null) {
+    if (showLyricsSheet && current?.kind == MediaKind.AUDIO) {
         FullLyricsSheet(
             lyrics            = lyrics,
             translatedRawText  = translatedRawLyrics,
@@ -613,7 +631,8 @@ fun AudioPlayerScreen(
         )
     }
 
-    if (showLyricsEditor && current != null) {
+    if (showLyricsEditor && current?.kind == MediaKind.AUDIO) {
+        val audioCurrent = current!!
         LyricsEditorDialog(
             currentPositionMs = positionMs,
             initialText       = lyrics?.rawText.orEmpty(),
@@ -621,13 +640,13 @@ fun AudioPlayerScreen(
                 scope.launch {
                     val parsed = LrcParser.parse(
                         rawText  = rawText,
-                        mediaId  = current.id,
-                        title    = current.title,
-                        artist   = current.artist,
-                        album    = current.album,
+                        mediaId  = audioCurrent.id,
+                        title    = audioCurrent.title,
+                        artist   = audioCurrent.artist,
+                        album    = audioCurrent.album,
                         source   = com.nexora.player.data.lyrics.LyricsSource.MANUAL
                     )
-                    lyricsRepository.saveLyrics(current, parsed, exportToSidecarFile = exportToFile)
+                    lyricsRepository.saveLyrics(audioCurrent, parsed, exportToSidecarFile = exportToFile)
                     lyrics = parsed
                     showLyricsEditor = false
                 }
@@ -892,18 +911,15 @@ private fun InlineLyricsSection(
     onExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val lrcLines = remember(lyrics?.rawText) { parseLrcLines(lyrics?.rawText) }
+    val lrcLines = remember(lyrics?.rawText) { syncedLyricsLines(lyrics?.rawText) }
     val translatedLines = remember(translatedRawText) { displayLyricsLines(translatedRawText) }
-
-    val currentLineIndex = remember(lrcLines, positionMs) {
-        if (lrcLines.isEmpty()) -1
-        else {
-            val idx = lrcLines.indexOfLast { it.timestampMs <= positionMs }
-            if (idx < 0 && lrcLines.isNotEmpty()) 0 else idx
-        }
+    val displayLines = remember(lyrics?.rawText, lrcLines) {
+        if (lrcLines.isNotEmpty()) lrcLines.map { it.text } else displayLyricsLines(lyrics?.rawText)
     }
 
-    val displayLines = remember(lyrics?.rawText) { displayLyricsLines(lyrics?.rawText) }
+    val currentLineIndex = remember(lrcLines, displayLines.size, positionMs) {
+        safeCurrentLyricsIndex(lrcLines, positionMs, displayLines.size)
+    }
 
     Column(modifier = modifier) {
 
@@ -998,13 +1014,12 @@ private fun InlineLyricsSection(
                             lineHeight = 26.sp
                         )
                     } else {
-                        val hasTiming = lrcLines.isNotEmpty() && currentLineIndex >= 0
-                        val pivotIdx  = if (hasTiming) currentLineIndex
-                                        else 0   // plain text: anchor at first line
+                        val hasTiming = lrcLines.isNotEmpty() && currentLineIndex in displayLines.indices
+                        val pivotIdx  = if (hasTiming) currentLineIndex else 0
 
-                        val prevIdx = (pivotIdx - 1).takeIf { it >= 0 }
-                        val currIdx = pivotIdx.takeIf { it < displayLines.size }
-                        val nextIdx = (pivotIdx + 1).takeIf { it < displayLines.size }
+                        val prevIdx = (pivotIdx - 1).takeIf { it in displayLines.indices }
+                        val currIdx = pivotIdx.takeIf { it in displayLines.indices }
+                        val nextIdx = (pivotIdx + 1).takeIf { it in displayLines.indices }
 
                         // Previous line
                         if (prevIdx != null) {
@@ -1097,7 +1112,7 @@ private fun CompactLyricsCard(
     modifier: Modifier = Modifier
 ) {
     // Parse LRC timestamps once per lyrics object
-    val lrcLines = remember(lyrics?.rawText) { parseLrcLines(lyrics?.rawText) }
+    val lrcLines = remember(lyrics?.rawText) { syncedLyricsLines(lyrics?.rawText) }
 
     // Current synced line — recomputed every time positionMs ticks
     val currentLine = remember(lrcLines, positionMs) {
@@ -1264,9 +1279,9 @@ private fun FullLyricsSheet(
     onSearchOnline: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val lrcLines = remember(lyrics?.rawText) { parseLrcLines(lyrics?.rawText) }
+    val lrcLines = remember(lyrics?.rawText) { syncedLyricsLines(lyrics?.rawText) }
     val originalLines = remember(lyrics?.rawText, lrcLines) {
-        if (lrcLines.isNotEmpty()) lrcLines.map { it.text }.filter { it.isNotBlank() }
+        if (lrcLines.isNotEmpty()) lrcLines.map { it.text }
         else displayLyricsLines(lyrics?.rawText)
     }
     val translatedLines = remember(translatedRawText) { displayLyricsLines(translatedRawText) }
@@ -1370,9 +1385,8 @@ private fun FullLyricsSheet(
                     }
 
                     lyrics != null -> {
-                        val currentLineIndex = remember(lrcLines, positionMs) {
-                            val idx = lrcLines.indexOfLast { it.timestampMs <= positionMs }
-                            if (idx < 0 && lrcLines.isNotEmpty()) 0 else idx
+                        val currentLineIndex = remember(lrcLines, originalLines.size, positionMs) {
+                            safeCurrentLyricsIndex(lrcLines, positionMs, originalLines.size)
                         }
 
                         LazyColumn(
