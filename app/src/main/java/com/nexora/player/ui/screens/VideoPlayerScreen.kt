@@ -1112,6 +1112,10 @@ private fun LandscapeScreen(
                 onToggleLock       = onToggleLock,
                 onAspectModeSelected = onAspectModeSelected,
                 onLoadSubtitle     = onLoadSubtitle,
+                onShareVideo       = onShareVideo,
+                onRenameVideo      = onRenameVideo,
+                onEditVideo        = onEditVideo,
+                onDeleteVideo      = onDeleteVideo,
                 onJumpToQueueIndex = onJumpToQueueIndex
             )
         }

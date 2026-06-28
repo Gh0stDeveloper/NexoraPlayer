@@ -780,7 +780,7 @@ private fun NexoraVolumePanel(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White.copy(alpha = 0.84f), modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Equalizer, contentDescription = null, tint = Color.White.copy(alpha = 0.84f), modifier = Modifier.size(20.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Volumen Nexora", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
                     Text(
@@ -802,7 +802,7 @@ private fun NexoraVolumePanel(
                 },
                 colors = SliderDefaults.colors(
                     thumbColor = Color.White,
-                    activeTrackColor = if (preferences.volumeBoostEnabled) NxAccent else Color.White,
+                    activeTrackColor = if (preferences.volumeBoostEnabled) Color(0xFFF54047) else Color.White,
                     inactiveTrackColor = Color.White.copy(alpha = 0.18f)
                 )
             )
@@ -813,8 +813,8 @@ private fun NexoraVolumePanel(
                     onValueChange = { onBoostChange(it.roundToInt()) },
                     valueRange = 0f..1800f,
                     colors = SliderDefaults.colors(
-                        thumbColor = NxAccent,
-                        activeTrackColor = NxAccent,
+                        thumbColor = Color(0xFFF54047),
+                        activeTrackColor = Color(0xFFF54047),
                         inactiveTrackColor = Color.White.copy(alpha = 0.18f)
                     )
                 )
