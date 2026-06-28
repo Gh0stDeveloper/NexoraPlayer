@@ -62,10 +62,12 @@ class PlayerService : MediaSessionService() {
     private var equalizerSettings: EqualizerSettings = EqualizerSettings()
     private var currentPreferences: AppPreferences = AppPreferences()
     private var progressTickerJob: Job? = null
+    private var foregroundStarted: Boolean = false
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        startForegroundSafely(buildStartupNotification())
         setupMediaSession()
         observeFavorites()
         observeEqualizer()
@@ -74,6 +76,7 @@ class PlayerService : MediaSessionService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startForegroundSafely(buildStartupNotification())
         try {
             when (intent?.action) {
                 ACTION_PLAY_PAUSE -> PlayerEngine.togglePlayPause(this)
@@ -165,7 +168,7 @@ class PlayerService : MediaSessionService() {
         if (current == null || current.kind != MediaKind.AUDIO || snapshot.queue.isEmpty()) {
             progressTickerJob?.cancel()
             progressTickerJob = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopForegroundIfNeeded()
             NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID)
             return
         }
@@ -185,8 +188,35 @@ class PlayerService : MediaSessionService() {
                 durationMs = resolveDurationMs(current, player.duration)
             )
 
+            startForegroundSafely(notification)
             NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
 
+            updateProgressTicker(snapshot)
+        } catch (_: Throwable) {
+            // Si algo falla aquí, mejor no crashear la app.
+        }
+    }
+
+    private fun buildStartupNotification(): Notification {
+        val accentColor = ContextCompat.getColor(this, R.color.nexora_accent)
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_playback)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText("Preparando reproducción")
+            .setContentIntent(contentIntent())
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setSilent(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setColor(accentColor)
+            .build()
+    }
+
+    private fun startForegroundSafely(notification: Notification) {
+        try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     NOTIFICATION_ID,
@@ -196,10 +226,20 @@ class PlayerService : MediaSessionService() {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-
-            updateProgressTicker(snapshot)
+            foregroundStarted = true
         } catch (_: Throwable) {
-            // Si algo falla aquí, mejor no crashear la app.
+            // Evita que un problema de notificación tumbe la reproducción.
+        }
+    }
+
+    private fun stopForegroundIfNeeded() {
+        if (!foregroundStarted) return
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Throwable) {
+            // No-op
+        } finally {
+            foregroundStarted = false
         }
     }
 
@@ -344,7 +384,7 @@ class PlayerService : MediaSessionService() {
             progressTickerJob?.cancel()
             progressTickerJob = null
             PlayerEngine.clear(this)
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopForegroundIfNeeded()
             NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID)
             stopSelf()
         } catch (_: Throwable) {

@@ -12,6 +12,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.nexora.player.data.model.NexoraRepeatMode
 import com.nexora.player.data.model.MediaEntry
+import com.nexora.player.data.model.MediaKind
 import com.nexora.player.data.model.PlaybackSnapshot
 import com.nexora.player.audio.VolumeBoostSessionManager
 import com.nexora.player.equalizer.EqualizerSessionManager
@@ -82,9 +83,18 @@ object PlayerEngine {
         autoPlay: Boolean = true
     ) {
         if (items.isEmpty()) return
-        ensureService(context)
-        val exoPlayer = get(context)
         val index = startIndex.coerceIn(0, items.lastIndex)
+
+        // El servicio foreground solo debe arrancar para audio.
+        // Los videos se reproducen dentro de la Activity; si se llama
+        // startForegroundService() para video, Android exige una
+        // notificación foreground inmediata y crashea si el servicio
+        // no la publica a tiempo.
+        if (items[index].kind == MediaKind.AUDIO) {
+            ensureService(context)
+        }
+
+        val exoPlayer = get(context)
         synchronized(queueLock) {
             queue = items.toList()
         }
