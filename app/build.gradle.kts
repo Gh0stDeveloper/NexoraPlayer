@@ -14,7 +14,8 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 5
-        versionName = "0.5.6"
+        versionName = "0.5.5"
+        buildConfigField("String", "NEXORA_SERVER_URL", "\"https://nexoraplayer.vercel.app\"")
     }
 
     val releaseKeystorePath = System.getenv("KEYSTORE_FILE") ?: "app/ghostnexora-release.jks"

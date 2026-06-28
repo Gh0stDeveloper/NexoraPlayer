@@ -45,6 +45,7 @@ class PreferencesRepository(private val context: Context) {
         val HIDDEN_AUDIO_IDS = stringSetPreferencesKey("hidden_audio_ids")
         val HIDDEN_FOLDERS = stringSetPreferencesKey("hidden_folders")
         val LAST_SEEN_VERSION_CODE = stringPreferencesKey("last_seen_version_code")
+        val POSTPONED_UPDATE_VERSION_CODE = stringPreferencesKey("postponed_update_version_code")
     }
 
     val preferences: Flow<AppPreferences> = context.dataStore.data.map { prefs ->
@@ -75,7 +76,8 @@ class PreferencesRepository(private val context: Context) {
                 .mapNotNull { it.toLongOrNull() }
                 .toSet(),
             hiddenFolders = prefs.stringSetValue(Keys.HIDDEN_FOLDERS, emptySet()),
-            lastSeenVersionCode = prefs.stringValue(Keys.LAST_SEEN_VERSION_CODE, "0").toIntOrNull() ?: 0
+            lastSeenVersionCode = prefs.stringValue(Keys.LAST_SEEN_VERSION_CODE, "0").toIntOrNull() ?: 0,
+            postponedUpdateVersionCode = prefs.stringValue(Keys.POSTPONED_UPDATE_VERSION_CODE, "0").toIntOrNull() ?: 0
         )
     }
 
@@ -217,6 +219,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setLastSeenVersionCode(versionCode: Int) {
         context.dataStore.edit { it[Keys.LAST_SEEN_VERSION_CODE] = versionCode.coerceAtLeast(0).toString() }
+    }
+
+    suspend fun setPostponedUpdateVersionCode(versionCode: Int) {
+        context.dataStore.edit { it[Keys.POSTPONED_UPDATE_VERSION_CODE] = versionCode.coerceAtLeast(0).toString() }
     }
 
     suspend fun removeHiddenFolder(folder: String) {

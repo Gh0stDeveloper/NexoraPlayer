@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -62,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,6 +75,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -135,56 +139,40 @@ fun MusicScreen(
         selectedItem    = null
     }
 
+    var pullDistance by remember { mutableStateOf(0f) }
+    var refreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(refreshing) {
+        if (refreshing) {
+            kotlinx.coroutines.delay(650)
+            refreshing = false
+            pullDistance = 0f
+        }
+    }
+
     // ── Screen layout ─────────────────────────────────────────────────────────
 
-    Column(modifier = modifier.fillMaxSize()) {
-
-        // Header bar with title + sort controls
-        Surface(
-            modifier        = Modifier.fillMaxWidth(),
-            tonalElevation  = 2.dp,
-            shadowElevation = 1.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    stringResource(R.string.music_library_title),
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(items.size) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (pullDistance > 90f && !refreshing) {
+                            refreshing = true
+                            onRefresh()
+                        } else {
+                            pullDistance = 0f
+                        }
+                    },
+                    onDragCancel = { pullDistance = 0f },
+                    onVerticalDrag = { _, dragAmount ->
+                        if (dragAmount > 0) {
+                            pullDistance = (pullDistance + dragAmount).coerceIn(0f, 140f)
+                        }
+                    }
                 )
-                Text(
-                    stringResource(R.string.music_library_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    FilterChip(
-                        selected = false,
-                        onClick  = onRefresh,
-                        label    = { Text(stringResource(R.string.refresh)) }
-                    )
-                    SortSelector(
-                        selected   = sortMode,
-                        options    = listOf(
-                            SortMode.DATE_ADDED_DESC, SortMode.DATE_ADDED_ASC,
-                            SortMode.TITLE_ASC,       SortMode.TITLE_DESC,
-                            SortMode.DURATION_ASC,    SortMode.DURATION_DESC,
-                            SortMode.ARTIST_ASC,      SortMode.ALBUM_ASC,
-                            SortMode.FOLDER_ASC,      SortMode.FOLDER_DESC
-                        ),
-                        onSelected = onSortSelected
-                    )
-                }
             }
-        }
-
-        // Empty state or song list
+    ) {
         if (items.isEmpty()) {
             Box(
                 modifier         = Modifier.fillMaxSize(),
@@ -226,6 +214,29 @@ fun MusicScreen(
                         onClick         = { onPlay(items, item) },
                         onFavoriteClick = { onToggleFavorite(item) },
                         onMoreClick     = { selectedItem = item }
+                    )
+                }
+            }
+        }
+
+        if (pullDistance > 20f || refreshing) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 10.dp),
+                shape = RoundedCornerShape(50),
+                tonalElevation = 4.dp,
+                shadowElevation = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text(
+                        if (refreshing) "Actualizando biblioteca" else "Suelta para actualizar",
+                        style = MaterialTheme.typography.labelMedium
                     )
                 }
             }

@@ -27,6 +27,9 @@ import com.nexora.player.audio.VolumeBoostSessionManager
 import com.nexora.player.data.preferences.AppPreferences
 import com.nexora.player.data.preferences.PreferencesRepository
 import com.nexora.player.data.repository.MediaStoreRepository
+import com.nexora.player.data.update.NexoraUpdateClient
+import com.nexora.player.data.update.RemoteUpdateInfo
+import com.nexora.player.notifications.RemoteUpdateNotifier
 import com.nexora.player.notifications.MediaLibraryNotifier
 import com.nexora.player.playback.PlayerEngine
 import com.nexora.player.presentation.MainViewModel
@@ -41,6 +44,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class AppUiState(
     val audio: List<MediaEntry> = emptyList(),
@@ -61,7 +65,12 @@ data class AppUiState(
     val onlineLoading: Boolean = false,
     val onlineError: String? = null,
     val folderSummaries: List<FolderSummary> = emptyList(),
-    val preferences: AppPreferences = AppPreferences()
+    val preferences: AppPreferences = AppPreferences(),
+    val updateInfo: RemoteUpdateInfo? = null,
+    val updateChecking: Boolean = false,
+    val updateError: String? = null,
+    val updateDialogDismissedInSession: Boolean = false,
+    val shareUrl: String = BuildConfig.NEXORA_SERVER_URL
 )
 
 private const val AUTO_PLAYLIST_ID = Long.MIN_VALUE + 42L
@@ -159,6 +168,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val mediaRepository = MediaStoreRepository(context)
     private val preferencesRepository = PreferencesRepository(context)
     private val onlineRepository = OnlineMusicRepository()
+    private val updateClient = NexoraUpdateClient()
     private val database = NexoraDatabase.get(context)
     private val presentation = MainViewModel()
 
@@ -176,6 +186,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         observePreferences()
         refreshLibrary()
         startLibraryPolling()
+        checkForUpdates(showDialogOnAvailable = false)
     }
 
     private fun observePlayback() {
@@ -474,6 +485,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val query = _uiState.value.search
         if (query.isNotBlank() && _uiState.value.preferences.onlineMusicSearchEnabled) {
             scheduleOnlineSearch(query)
+        }
+    }
+
+    fun checkForUpdates(showDialogOnAvailable: Boolean = false) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(updateChecking = true, updateError = null)
+            val result = runCatching { updateClient.checkVersion(BuildConfig.VERSION_CODE) }
+            result.onSuccess { info ->
+                RemoteUpdateNotifier.notifyServerMessages(context, info.notifications)
+                if (info.available) {
+                    RemoteUpdateNotifier.notifyUpdateAvailable(context, info)
+                }
+                val shouldAutoShow = info.available && (
+                    info.required ||
+                    showDialogOnAvailable ||
+                    (_uiState.value.preferences.postponedUpdateVersionCode < info.latestVersion.versionCode && !_uiState.value.updateDialogDismissedInSession)
+                )
+                _uiState.value = _uiState.value.copy(
+                    updateInfo = info,
+                    updateChecking = false,
+                    updateError = null,
+                    shareUrl = info.urls.share.ifBlank { updateClient.shareUrl() },
+                    updateDialogDismissedInSession = if (showDialogOnAvailable && shouldAutoShow) false else _uiState.value.updateDialogDismissedInSession
+                )
+            }.onFailure { throwable ->
+                _uiState.value = _uiState.value.copy(
+                    updateChecking = false,
+                    updateError = throwable.message ?: "No se pudo consultar el servidor de actualizaciones",
+                    shareUrl = updateClient.shareUrl()
+                )
+            }
+        }
+    }
+
+    fun dismissUpdateDialog(postpone: Boolean) {
+        val info = _uiState.value.updateInfo ?: return
+        _uiState.value = _uiState.value.copy(updateDialogDismissedInSession = true)
+        if (postpone && !info.required) {
+            viewModelScope.launch { preferencesRepository.setPostponedUpdateVersionCode(info.latestVersion.versionCode) }
         }
     }
 

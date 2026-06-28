@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
@@ -227,6 +228,9 @@ fun SettingsScreen(
     sleepTimerMinutes: Int = 30,
     sleepTimerStopAtEndOfTrack: Boolean = false,
     hiddenFolders: List<String> = emptyList(),
+    shareUrl: String = "https://nexoraplayer.vercel.app",
+    updateChecking: Boolean = false,
+    updateError: String? = null,
     currentLanguage: AppLanguage,
     onThemeChange: (AppThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
@@ -248,6 +252,7 @@ fun SettingsScreen(
     onRemoveHiddenFolder: (String) -> Unit = {},
     onClearHiddenFolders: () -> Unit = {},
     onOpenFolderManager: () -> Unit = {},
+    onCheckUpdates: () -> Unit = {},
     onRestoreHiddenItem: (Long) -> Unit = {}
 ) {
     val uriHandler      = LocalUriHandler.current
@@ -648,8 +653,18 @@ fun SettingsScreen(
                 icon      = Icons.Filled.Share,
                 iconColor = Color(0xFFFF9500),
                 title     = "Compártenos",
-                subtitle  = "Comparte el enlace de descarga para que más usuarios conozcan NexoraPlayer.",
-                onClick   = { shareNexoraPlayer(context) }
+                subtitle  = "Comparte el enlace oficial de descarga desde nexoraplayer.vercel.app.",
+                onClick   = { shareNexoraPlayer(context, shareUrl) }
+            )
+
+            RowDivider()
+
+            SettingsLinkRow(
+                icon      = Icons.Filled.SystemUpdate,
+                iconColor = Color(0xFF0A84FF),
+                title     = if (updateChecking) "Buscando actualización…" else "Buscar actualización",
+                subtitle  = updateError ?: "Consulta el servidor oficial para detectar versiones nuevas.",
+                onClick   = onCheckUpdates
             )
 
             RowDivider()
@@ -1176,9 +1191,9 @@ private fun SettingsLinkRow(
 }
 
 
-private fun shareNexoraPlayer(context: Context) {
-    val downloadUrl = "https://github.com/CHICO-CP/NexoraPlayer/releases/latest"
-    val message = "Compártenos para que más usuarios nos conozcan. Descarga NexoraPlayer aquí: $downloadUrl"
+private fun shareNexoraPlayer(context: Context, downloadUrl: String) {
+    val safeUrl = downloadUrl.ifBlank { "https://nexoraplayer.vercel.app" }
+    val message = "Compártenos para que más usuarios nos conozcan. Descarga NexoraPlayer desde la página oficial: $safeUrl"
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, "NexoraPlayer")

@@ -30,5 +30,6 @@ data class AppPreferences(
     val playbackSessionJson: String = "",
     val hiddenAudioIds: Set<Long> = emptySet(),
     val hiddenFolders: Set<String> = emptySet(),
-    val lastSeenVersionCode: Int = 0
+    val lastSeenVersionCode: Int = 0,
+    val postponedUpdateVersionCode: Int = 0
 )

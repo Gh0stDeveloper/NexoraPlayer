@@ -2,6 +2,8 @@ package com.nexora.player
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -93,28 +95,18 @@ class MainActivity : AppCompatActivity() {
             var lastAutoOpenedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
             var selectedPlaylistId by rememberSaveable { mutableStateOf<Long?>(null) }
             var showFolderManager by rememberSaveable { mutableStateOf(false) }
-            var showReleaseNotes by rememberSaveable { mutableStateOf(false) }
-            val releaseNotesPrefs = remember { getSharedPreferences("nexora_release_notes", Context.MODE_PRIVATE) }
-
             val greeting = rememberGreeting()
+            val availableUpdate = state.updateInfo
+            val shouldShowUpdateDialog = availableUpdate?.available == true && (
+                availableUpdate.required ||
+                    (!state.updateDialogDismissedInSession && state.preferences.postponedUpdateVersionCode < availableUpdate.latestVersion.versionCode)
+            )
 
             LaunchedEffect(state.currentItem?.id, state.isPlaying) {
                 val current = state.currentItem
                 if (state.isPlaying && current != null && lastAutoOpenedItemId != current.id) {
                     showNowPlaying = true
                     lastAutoOpenedItemId = current.id
-                }
-            }
-
-            LaunchedEffect(state.preferences.lastSeenVersionCode) {
-                val currentVersionCode = BuildConfig.VERSION_CODE
-                val localSeenVersionCode = releaseNotesPrefs.getInt("last_seen_version_code", 0)
-                if (state.preferences.lastSeenVersionCode < currentVersionCode && localSeenVersionCode < currentVersionCode) {
-                    showReleaseNotes = true
-                    // Marcar en almacenamiento local inmediatamente evita que vuelva a mostrarse
-                    // si el usuario sale de la app antes de tocar "Entendido".
-                    releaseNotesPrefs.edit().putInt("last_seen_version_code", currentVersionCode).apply()
-                    viewModel.markCurrentVersionSeen()
                 }
             }
 
@@ -150,7 +142,9 @@ class MainActivity : AppCompatActivity() {
                                 expanded = searchExpanded,
                                 onExpandedChange = { searchExpanded = it },
                                 onQueryChange = { viewModel.setSearch(it) },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                sortMode = if (state.selectedDestination == AppDestination.MUSIC) state.audioSort else null,
+                                onSortSelected = viewModel::setAudioSort
                             )
                         }
                     },
@@ -190,10 +184,15 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-                if (showReleaseNotes) {
+                if (shouldShowUpdateDialog && availableUpdate != null) {
                     ReleaseNotesDialog(
-                        versionName = BuildConfig.VERSION_NAME,
-                        onDismiss = { showReleaseNotes = false }
+                        updateInfo = availableUpdate,
+                        onDownload = {
+                            openExternalUrl(availableUpdate.urls.download)
+                        },
+                        onLater = {
+                            viewModel.dismissUpdateDialog(postpone = true)
+                        }
                     )
                 }
 
@@ -214,6 +213,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun openExternalUrl(url: String) {
+        val safeUrl = url.ifBlank { BuildConfig.NEXORA_SERVER_URL }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl))
+        runCatching { startActivity(intent) }
     }
 
     private fun requestMediaPermissions() {
@@ -428,6 +433,9 @@ private fun DestinationPagerContent(
                 sleepTimerMinutes = state.preferences.sleepTimerMinutes,
                 sleepTimerStopAtEndOfTrack = state.preferences.sleepTimerStopAtEndOfTrack,
                 hiddenFolders = state.preferences.hiddenFolders.toList(),
+                shareUrl = state.shareUrl,
+                updateChecking = state.updateChecking,
+                updateError = state.updateError,
                 currentLanguage = rememberAppLanguage(),
                 onThemeChange = viewModel::setThemeMode,
                 onDynamicColorChange = viewModel::setDynamicColor,
@@ -448,7 +456,8 @@ private fun DestinationPagerContent(
                 onAddHiddenFolder = viewModel::addHiddenFolder,
                 onRemoveHiddenFolder = viewModel::removeHiddenFolder,
                 onClearHiddenFolders = viewModel::clearHiddenFolders,
-                onOpenFolderManager = onOpenFolderManager
+                onOpenFolderManager = onOpenFolderManager,
+                onCheckUpdates = { viewModel.checkForUpdates(showDialogOnAvailable = true) }
             )
 
             AppDestination.QUEUE, AppDestination.HISTORY -> MusicScreen(
