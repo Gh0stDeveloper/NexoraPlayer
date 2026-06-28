@@ -1,6 +1,7 @@
 package com.nexora.player
 
 import android.app.Application
+import android.content.Intent
 import org.json.JSONArray
 import org.json.JSONObject
 import androidx.lifecycle.AndroidViewModel
@@ -249,6 +250,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val folderSummaries = presentation.library.folderSummaries(allAudio)
             val audio = presentation.library.visibleAudio(allAudio, hiddenIds, hiddenFolders)
             val videos = mediaRepository.loadVideos(_uiState.value.videoSort)
+                .filterNot { it.id in hiddenIds }
             _uiState.value = _uiState.value.copy(audio = audio, videos = videos, folderSummaries = folderSummaries)
 
             if (_uiState.value.preferences.libraryChangeNotificationsEnabled) {
@@ -553,6 +555,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 preferencesRepository.removeHiddenAudioId(entry.id)
                 refreshLibrary()
             }
+        }
+    }
+
+    fun editMediaFile(entry: MediaEntry) {
+        val intent = Intent(Intent.ACTION_EDIT).apply {
+            setDataAndType(entry.uri, if (entry.kind == MediaKind.VIDEO) "video/*" else "audio/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching {
+            context.startActivity(Intent.createChooser(intent, "Editar archivo").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
 
@@ -968,9 +982,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun filteredVideos(): List<MediaEntry> {
         val q = _uiState.value.search.trim().lowercase()
-        return _uiState.value.videos.filter {
-            q.isBlank() || it.title.lowercase().contains(q) || it.folder.orEmpty().lowercase().contains(q)
-        }
+        val hiddenIds = _uiState.value.preferences.hiddenAudioIds
+        return _uiState.value.videos
+            .filterNot { it.id in hiddenIds }
+            .filter {
+                q.isBlank() || it.title.lowercase().contains(q) || it.folder.orEmpty().lowercase().contains(q)
+            }
     }
 
     fun markCurrentVersionSeen() {

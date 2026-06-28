@@ -1,5 +1,8 @@
 package com.nexora.player.ui.screens
 
+import android.content.Context
+import android.content.Intent
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -41,6 +44,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -69,6 +73,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -246,6 +251,7 @@ fun SettingsScreen(
     onRestoreHiddenItem: (Long) -> Unit = {}
 ) {
     val uriHandler      = LocalUriHandler.current
+    val context         = LocalContext.current
     val showTerms       = remember { mutableStateOf(false) }
     val showPrivacy     = remember { mutableStateOf(false) }
     val showHiddenSheet = remember { mutableStateOf(false) }
@@ -634,6 +640,16 @@ fun SettingsScreen(
                 title     = stringResource(R.string.settings_profile),
                 subtitle  = "t.me/Gh0stDeveloper",
                 onClick   = { uriHandler.openUri("https://t.me/Gh0stDeveloper") }
+            )
+
+            RowDivider()
+
+            SettingsLinkRow(
+                icon      = Icons.Filled.Share,
+                iconColor = Color(0xFFFF9500),
+                title     = "Compártenos",
+                subtitle  = "Comparte el enlace de descarga para que más usuarios conozcan NexoraPlayer.",
+                onClick   = { shareNexoraPlayer(context) }
             )
 
             RowDivider()
@@ -1157,4 +1173,16 @@ private fun SettingsLinkRow(
             modifier = Modifier.size(20.dp)
         )
     }
+}
+
+
+private fun shareNexoraPlayer(context: Context) {
+    val downloadUrl = "https://github.com/CHICO-CP/NexoraPlayer/releases/latest"
+    val message = "Compártenos para que más usuarios nos conozcan. Descarga NexoraPlayer aquí: $downloadUrl"
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "NexoraPlayer")
+        putExtra(Intent.EXTRA_TEXT, message)
+    }
+    context.startActivity(Intent.createChooser(intent, "Compartir NexoraPlayer"))
 }

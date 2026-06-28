@@ -1,6 +1,7 @@
 package com.nexora.player
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -31,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -92,6 +94,7 @@ class MainActivity : AppCompatActivity() {
             var selectedPlaylistId by rememberSaveable { mutableStateOf<Long?>(null) }
             var showFolderManager by rememberSaveable { mutableStateOf(false) }
             var showReleaseNotes by rememberSaveable { mutableStateOf(false) }
+            val releaseNotesPrefs = remember { getSharedPreferences("nexora_release_notes", Context.MODE_PRIVATE) }
 
             val greeting = rememberGreeting()
 
@@ -104,8 +107,14 @@ class MainActivity : AppCompatActivity() {
             }
 
             LaunchedEffect(state.preferences.lastSeenVersionCode) {
-                if (state.preferences.lastSeenVersionCode < BuildConfig.VERSION_CODE) {
+                val currentVersionCode = BuildConfig.VERSION_CODE
+                val localSeenVersionCode = releaseNotesPrefs.getInt("last_seen_version_code", 0)
+                if (state.preferences.lastSeenVersionCode < currentVersionCode && localSeenVersionCode < currentVersionCode) {
                     showReleaseNotes = true
+                    // Marcar en almacenamiento local inmediatamente evita que vuelva a mostrarse
+                    // si el usuario sale de la app antes de tocar "Entendido".
+                    releaseNotesPrefs.edit().putInt("last_seen_version_code", currentVersionCode).apply()
+                    viewModel.markCurrentVersionSeen()
                 }
             }
 
@@ -184,10 +193,7 @@ class MainActivity : AppCompatActivity() {
                 if (showReleaseNotes) {
                     ReleaseNotesDialog(
                         versionName = BuildConfig.VERSION_NAME,
-                        onDismiss = {
-                            showReleaseNotes = false
-                            viewModel.markCurrentVersionSeen()
-                        }
+                        onDismiss = { showReleaseNotes = false }
                     )
                 }
 
@@ -382,7 +388,10 @@ private fun DestinationPagerContent(
                 sortMode = state.videoSort,
                 onPlay = viewModel::playFromLibrary,
                 onRefresh = viewModel::refreshLibrary,
-                onSortSelected = viewModel::setVideoSort
+                onSortSelected = viewModel::setVideoSort,
+                onEditVideo = viewModel::editMediaFile,
+                onHideVideo = viewModel::hideFromLibrary,
+                onDeleteVideo = viewModel::deleteFromLibrary
             )
 
             AppDestination.PLAYLISTS -> PlaylistsScreen(

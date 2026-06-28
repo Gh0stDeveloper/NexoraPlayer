@@ -2,8 +2,11 @@ package com.nexora.player.playback
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.core.content.ContextCompat
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -186,6 +189,30 @@ object PlayerEngine {
         crossfadeDurationMs = durationMs.coerceIn(500, 5000)
         crossfadeController.configure(enabled, crossfadeDurationMs)
         player?.let { crossfadeController.attach(it) }
+    }
+
+
+    fun setExternalSubtitle(context: Context, subtitleUri: Uri) {
+        val exoPlayer = get(context)
+        val currentIndex = exoPlayer.currentMediaItemIndex
+        if (currentIndex < 0 || currentIndex >= exoPlayer.mediaItemCount) return
+        val currentItem = exoPlayer.currentMediaItem ?: return
+        val positionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
+        val shouldPlay = exoPlayer.playWhenReady
+        val subtitle = MediaItem.SubtitleConfiguration.Builder(subtitleUri)
+            .setMimeType(MimeTypes.APPLICATION_SUBRIP)
+            .setLanguage("und")
+            .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+            .build()
+        val updatedItem = currentItem.buildUpon()
+            .setSubtitleConfigurations(listOf(subtitle))
+            .build()
+        exoPlayer.replaceMediaItem(currentIndex, updatedItem)
+        exoPlayer.prepare()
+        exoPlayer.seekTo(currentIndex, positionMs)
+        exoPlayer.playWhenReady = shouldPlay
+        if (shouldPlay) exoPlayer.play()
+        updateSnapshot(exoPlayer)
     }
 
     fun release() {

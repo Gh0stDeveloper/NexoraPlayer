@@ -154,6 +154,12 @@ private enum class ArtworkStyle {
     }
 }
 
+private enum class LyricsDisplayMode(val label: String) {
+    ORIGINAL("Original"),
+    TRANSLATED("Traducida"),
+    BOTH("Ambas")
+}
+
 // ---------------------------------------------------------------------------
 // Helper: parse LRC timestamps from rawText to get timed lines
 // ---------------------------------------------------------------------------
@@ -1258,119 +1264,300 @@ private fun FullLyricsSheet(
     onSearchOnline: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val lrcLines   = remember(lyrics?.rawText) { parseLrcLines(lyrics?.rawText) }
+    val lrcLines = remember(lyrics?.rawText) { parseLrcLines(lyrics?.rawText) }
+    val originalLines = remember(lyrics?.rawText, lrcLines) {
+        if (lrcLines.isNotEmpty()) lrcLines.map { it.text }.filter { it.isNotBlank() }
+        else displayLyricsLines(lyrics?.rawText)
+    }
     val translatedLines = remember(translatedRawText) { displayLyricsLines(translatedRawText) }
+    var displayMode by rememberSaveable { mutableStateOf(LyricsDisplayMode.ORIGINAL) }
+
+    val safeDisplayMode = when {
+        displayMode == LyricsDisplayMode.TRANSLATED && translatedLines.isEmpty() -> LyricsDisplayMode.ORIGINAL
+        displayMode == LyricsDisplayMode.BOTH && translatedLines.isEmpty() -> LyricsDisplayMode.ORIGINAL
+        else -> displayMode
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState       = sheetState
+        sheetState = sheetState,
+        containerColor = Color(0xFF04050A),
+        contentColor = Color.White
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.88f)
-                .padding(horizontal = 22.dp, vertical = 16.dp)
+                .fillMaxHeight(0.92f)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF111126),
+                            Color(0xFF07080F),
+                            Color(0xFF04050A)
+                        )
+                    )
+                )
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 22.dp, vertical = 16.dp)
             ) {
-                Text("Letra", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (lyrics == null && !lyricsLoading) {
-                        TextButton(onClick = onSearchOnline) { Text("Buscar en línea") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "Letras",
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = when (safeDisplayMode) {
+                                LyricsDisplayMode.ORIGINAL -> "Mostrando letra original"
+                                LyricsDisplayMode.TRANSLATED -> "Mostrando letra traducida"
+                                LyricsDisplayMode.BOTH -> "Mostrando original y traducción"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.56f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    TextButton(onClick = onEdit) {
-                        Text(if (lyrics == null) "Agregar" else "Editar")
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                displayMode = when (safeDisplayMode) {
+                                    LyricsDisplayMode.ORIGINAL -> if (translatedLines.isNotEmpty()) LyricsDisplayMode.TRANSLATED else LyricsDisplayMode.ORIGINAL
+                                    LyricsDisplayMode.TRANSLATED -> LyricsDisplayMode.BOTH
+                                    LyricsDisplayMode.BOTH -> LyricsDisplayMode.ORIGINAL
+                                }
+                            },
+                            enabled = translatedLines.isNotEmpty()
+                        ) {
+                            Icon(
+                                Icons.Filled.Translate,
+                                contentDescription = "Cambiar vista de traducción",
+                                tint = if (translatedLines.isNotEmpty()) Color.White else Color.White.copy(alpha = 0.28f)
+                            )
+                        }
+                        TextButton(onClick = onEdit) {
+                            Text(if (lyrics == null) "Agregar" else "Editar", color = Color.White.copy(alpha = 0.76f))
+                        }
                     }
                 }
-            }
 
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
 
-            when {
-                lyricsLoading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Cargando letra...", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+                LyricsModeSelector(
+                    selected = safeDisplayMode,
+                    hasTranslation = translatedLines.isNotEmpty(),
+                    onSelected = { displayMode = it }
+                )
 
-                lyrics != null -> {
-                    val displayLines = if (lrcLines.isNotEmpty()) {
-                        lrcLines.map { it.text }.filter { it.isNotBlank() }
-                    } else {
-                        displayLyricsLines(lyrics.rawText)
-                    }
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                Spacer(Modifier.height(12.dp))
 
-                    // Highlight current line index
-                    val currentLineIndex = remember(lrcLines, positionMs) {
-                        val idx = lrcLines.indexOfLast { it.timestampMs <= positionMs }
-                        if (idx < 0 && lrcLines.isNotEmpty()) 0 else idx
+                when {
+                    lyricsLoading -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Cargando letra...", color = Color.White.copy(alpha = 0.62f))
+                        }
                     }
 
-                    LazyColumn(
-                        modifier              = Modifier.fillMaxSize(),
-                        verticalArrangement   = Arrangement.spacedBy(2.dp)
-                    ) {
-                        itemsIndexed(displayLines) { index, line ->
-                            val isCurrentLine = lrcLines.isNotEmpty() && index == currentLineIndex
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text     = line,
-                                    style    = MaterialTheme.typography.bodyLarge.copy(
-                                        fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize   = if (isCurrentLine) 18.sp else 16.sp
-                                    ),
-                                    color    = if (isCurrentLine) MaterialTheme.colorScheme.primary
-                                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-                                    modifier = Modifier.fillMaxWidth()
+                    lyrics != null -> {
+                        val currentLineIndex = remember(lrcLines, positionMs) {
+                            val idx = lrcLines.indexOfLast { it.timestampMs <= positionMs }
+                            if (idx < 0 && lrcLines.isNotEmpty()) 0 else idx
+                        }
+
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            itemsIndexed(originalLines) { index, originalLine ->
+                                val isCurrentLine = lrcLines.isNotEmpty() && index == currentLineIndex
+                                val translatedLine = translatedLines.getOrNull(index).orEmpty()
+                                LyricsKaraokeRow(
+                                    originalLine = originalLine,
+                                    translatedLine = translatedLine,
+                                    mode = safeDisplayMode,
+                                    isCurrentLine = isCurrentLine
                                 )
-                                translatedLines.getOrNull(index)?.takeIf { it.isNotBlank() }?.let { translated ->
-                                    Text(
-                                        text     = translated,
-                                        style    = MaterialTheme.typography.bodySmall,
-                                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.fillMaxWidth()
+                            }
+                        }
+                    }
+
+                    else -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color.White.copy(alpha = 0.08f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.MusicNote,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.70f),
+                                        modifier = Modifier.padding(18.dp).size(42.dp)
                                     )
                                 }
+                                Text(
+                                    text = "Sin letra disponible",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White.copy(alpha = 0.86f),
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "Puedes buscarla en línea o escribirla manualmente.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.52f),
+                                    textAlign = TextAlign.Center
+                                )
+                                FilledTonalButton(onClick = onSearchOnline) { Text("Buscar en línea") }
+                                TextButton(onClick = onEdit) { Text("Agregar manualmente", color = Color.White.copy(alpha = 0.72f)) }
                             }
                         }
                     }
                 }
-
-                else -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(
-                            horizontalAlignment   = Alignment.CenterHorizontally,
-                            verticalArrangement   = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                imageVector    = Icons.Filled.MusicNote,
-                                contentDescription = null,
-                                tint           = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier       = Modifier.size(48.dp)
-                            )
-                            Text(
-                                text      = "Sin letra disponible",
-                                style     = MaterialTheme.typography.bodyLarge,
-                                color     = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                            FilledTonalButton(onClick = onSearchOnline) { Text("Buscar en línea") }
-                            TextButton(onClick = onEdit) { Text("Agregar manualmente") }
-                        }
-                    }
-                }
             }
+        }
+    }
+}
+
+@Composable
+private fun LyricsModeSelector(
+    selected: LyricsDisplayMode,
+    hasTranslation: Boolean,
+    onSelected: (LyricsDisplayMode) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.07f))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        LyricsModeButton(
+            text = "Original",
+            selected = selected == LyricsDisplayMode.ORIGINAL,
+            enabled = true,
+            onClick = { onSelected(LyricsDisplayMode.ORIGINAL) },
+            modifier = Modifier.weight(1f)
+        )
+        LyricsModeButton(
+            text = "Traducida",
+            selected = selected == LyricsDisplayMode.TRANSLATED,
+            enabled = hasTranslation,
+            leadingIcon = Icons.Filled.Translate,
+            onClick = { onSelected(LyricsDisplayMode.TRANSLATED) },
+            modifier = Modifier.weight(1f)
+        )
+        LyricsModeButton(
+            text = "Ambas",
+            selected = selected == LyricsDisplayMode.BOTH,
+            enabled = hasTranslation,
+            leadingIcon = Icons.Filled.Translate,
+            onClick = { onSelected(LyricsDisplayMode.BOTH) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LyricsModeButton(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (leadingIcon != null) {
+                Icon(
+                    leadingIcon,
+                    contentDescription = null,
+                    tint = if (enabled) Color.White.copy(alpha = 0.82f) else Color.White.copy(alpha = 0.28f),
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(Modifier.width(5.dp))
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium),
+                color = when {
+                    !enabled -> Color.White.copy(alpha = 0.28f)
+                    selected -> Color.White
+                    else -> Color.White.copy(alpha = 0.62f)
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun LyricsKaraokeRow(
+    originalLine: String,
+    translatedLine: String,
+    mode: LyricsDisplayMode,
+    isCurrentLine: Boolean
+) {
+    val accent = Color(0xFF7C3AED)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (isCurrentLine) accent.copy(alpha = 0.16f) else Color.Transparent)
+            .padding(horizontal = 14.dp, vertical = if (isCurrentLine) 12.dp else 9.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        if (mode == LyricsDisplayMode.ORIGINAL || mode == LyricsDisplayMode.BOTH) {
+            Text(
+                text = originalLine,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = if (isCurrentLine) 20.sp else 16.sp,
+                    lineHeight = if (isCurrentLine) 28.sp else 24.sp
+                ),
+                color = if (isCurrentLine) Color.White else Color.White.copy(alpha = 0.64f),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        if ((mode == LyricsDisplayMode.TRANSLATED || mode == LyricsDisplayMode.BOTH) && translatedLine.isNotBlank()) {
+            Text(
+                text = translatedLine,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = if (mode == LyricsDisplayMode.TRANSLATED && isCurrentLine) FontWeight.SemiBold else FontWeight.Normal,
+                    fontSize = if (mode == LyricsDisplayMode.TRANSLATED && isCurrentLine) 19.sp else 14.sp,
+                    lineHeight = 22.sp
+                ),
+                color = if (isCurrentLine) Color.White.copy(alpha = 0.88f) else Color.White.copy(alpha = 0.48f),
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

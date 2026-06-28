@@ -8,6 +8,8 @@ import android.content.res.Configuration
 import android.media.AudioManager
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -44,15 +46,22 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -70,6 +79,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -114,6 +124,22 @@ private val NxDivider  = Color.White.copy(alpha = 0.07f)
 
 private val GradientAccent = Brush.horizontalGradient(listOf(NxAccent, NxAccent2))
 
+private enum class VideoAspectMode(
+    val label: String,
+    val resizeMode: Int,
+    val frameRatio: Float? = null
+) {
+    FIT("Ajustar", AspectRatioFrameLayout.RESIZE_MODE_FIT),
+    FILL("Llenar", AspectRatioFrameLayout.RESIZE_MODE_FILL),
+    CROP("Recortar", AspectRatioFrameLayout.RESIZE_MODE_ZOOM),
+    RATIO_16_9("16:9", AspectRatioFrameLayout.RESIZE_MODE_FIT, 16f / 9f),
+    RATIO_4_3("4:3", AspectRatioFrameLayout.RESIZE_MODE_FIT, 4f / 3f);
+
+    companion object {
+        fun fromName(value: String): VideoAspectMode = runCatching { valueOf(value) }.getOrDefault(FIT)
+    }
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // SCREEN PRINCIPAL
 // ═════════════════════════════════════════════════════════════════════════════
@@ -131,6 +157,13 @@ fun VideoPlayerScreen(
     val snapshot   by PlayerEngine.snapshot.collectAsState()
     val audioManager = context.getSystemService<AudioManager>()
     val maxVolume  = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+    val videoResumePrefs = remember(context) { context.getSharedPreferences("nexora_video_resume", Context.MODE_PRIVATE) }
+    var controlsLocked by rememberSaveable { mutableStateOf(false) }
+    var aspectModeName by rememberSaveable { mutableStateOf(VideoAspectMode.FIT.name) }
+    val aspectMode = remember(aspectModeName) { VideoAspectMode.fromName(aspectModeName) }
+    val subtitleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { PlayerEngine.setExternalSubtitle(context, it) }
+    }
 
     val configuration = LocalConfiguration.current
     val isLandscape   = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -187,6 +220,31 @@ fun VideoPlayerScreen(
     LaunchedEffect(showBrightnessHud) { if (showBrightnessHud)      { delay(1_600); showBrightnessHud = false } }
     LaunchedEffect(showVolumeHud)     { if (showVolumeHud)          { delay(1_600); showVolumeHud = false } }
 
+    LaunchedEffect(currentItem?.id) {
+        val item = currentItem ?: return@LaunchedEffect
+        val savedPosition = videoResumePrefs.getLong("video_${item.id}", 0L)
+        if (savedPosition > 1_500L) {
+            delay(250)
+            exoPlayer.seekTo(savedPosition.coerceAtMost((exoPlayer.duration.takeIf { it > 0L } ?: item.durationMs).coerceAtLeast(0L)))
+        }
+    }
+
+    LaunchedEffect(currentItem?.id, snapshot.isPlaying) {
+        val item = currentItem ?: return@LaunchedEffect
+        while (true) {
+            videoResumePrefs.edit().putLong("video_${item.id}", exoPlayer.currentPosition.coerceAtLeast(0L)).apply()
+            delay(2_000L)
+        }
+    }
+
+    DisposableEffect(currentItem?.id) {
+        onDispose {
+            currentItem?.let { item ->
+                videoResumePrefs.edit().putLong("video_${item.id}", exoPlayer.currentPosition.coerceAtLeast(0L)).apply()
+            }
+        }
+    }
+
     BackHandler {
         if (isLandscape) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         else onClose()
@@ -220,6 +278,13 @@ fun VideoPlayerScreen(
         seekFeedbackMs = deltaMs
     }
 
+    fun seekByFraction(deltaFraction: Float) {
+        val dur = exoPlayer.duration.takeIf { it > 0L } ?: currentItem?.durationMs ?: 0L
+        if (dur <= 0L) return
+        val deltaMs = (dur * deltaFraction * 0.35f).toLong().coerceIn(-60_000L, 60_000L)
+        if (deltaMs != 0L) seekBy(deltaMs)
+    }
+
     if (currentItem == null) {
         Box(
             modifier = modifier.fillMaxSize().background(NxBg),
@@ -247,6 +312,8 @@ fun VideoPlayerScreen(
             modifier              = modifier,
             exoPlayer             = exoPlayer,
             currentItem           = currentItem,
+            aspectMode            = aspectMode,
+            controlsLocked        = controlsLocked,
             queue                 = queue,
             queueFromCurrent      = queueFromCurrent,
             queueStartIndex       = queueStartIndex,
@@ -265,6 +332,7 @@ fun VideoPlayerScreen(
             onDoubleTapRight      = { seekBy(10_000L);  landscapeControlsVisible = true },
             onBrightnessSwipe     = { delta -> setBrightness(brightness + delta) },
             onVolumeSwipe         = { delta -> setVolume(volumeFraction + delta) },
+            onHorizontalSeek      = { fraction -> seekByFraction(fraction) },
             onSeekTo              = { exoPlayer.seekTo(it) },
             onPrevious            = { PlayerEngine.skipPrevious(context); landscapeControlsVisible = true },
             onTogglePlay          = { PlayerEngine.togglePlayPause(context); landscapeControlsVisible = true },
@@ -276,6 +344,9 @@ fun VideoPlayerScreen(
             onBack                = {
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             },
+            onToggleLock          = { controlsLocked = !controlsLocked; landscapeControlsVisible = true },
+            onAspectModeSelected  = { aspectModeName = it.name; landscapeControlsVisible = true },
+            onLoadSubtitle        = { subtitleLauncher.launch("application/x-subrip") },
             onJumpToQueueIndex    = { idx ->
                 PlayerEngine.jumpTo(context, idx)
                 showQueuePanel = false
@@ -287,6 +358,8 @@ fun VideoPlayerScreen(
             modifier           = modifier,
             exoPlayer          = exoPlayer,
             currentItem        = currentItem,
+            aspectMode         = aspectMode,
+            controlsLocked     = controlsLocked,
             queueFromCurrent   = queueFromCurrent,
             queueStartIndex    = queueStartIndex,
             isPlaying          = snapshot.isPlaying,
@@ -306,7 +379,11 @@ fun VideoPlayerScreen(
             onBrightnessChange = ::setBrightness,
             onVolumeChange     = ::setVolume,
             onJumpToQueueIndex = { idx -> PlayerEngine.jumpTo(context, idx) },
-            onDoubleTap        = { right -> if (right) seekBy(10_000L) else seekBy(-10_000L) }
+            onDoubleTap        = { right -> if (right) seekBy(10_000L) else seekBy(-10_000L) },
+            onHorizontalSeek   = { fraction -> seekByFraction(fraction) },
+            onToggleLock       = { controlsLocked = !controlsLocked },
+            onAspectModeSelected = { aspectModeName = it.name },
+            onLoadSubtitle     = { subtitleLauncher.launch("application/x-subrip") }
         )
     }
 }
@@ -320,6 +397,8 @@ private fun PortraitScreen(
     modifier           : Modifier = Modifier,
     exoPlayer          : androidx.media3.common.Player,
     currentItem        : MediaEntry,
+    aspectMode         : VideoAspectMode,
+    controlsLocked     : Boolean,
     queueFromCurrent   : List<MediaEntry>,
     queueStartIndex    : Int,
     isPlaying          : Boolean,
@@ -337,7 +416,11 @@ private fun PortraitScreen(
     onBrightnessChange : (Float) -> Unit,
     onVolumeChange     : (Float) -> Unit,
     onJumpToQueueIndex : (Int) -> Unit,
-    onDoubleTap        : (right: Boolean) -> Unit
+    onDoubleTap        : (right: Boolean) -> Unit,
+    onHorizontalSeek   : (Float) -> Unit,
+    onToggleLock       : () -> Unit,
+    onAspectModeSelected: (VideoAspectMode) -> Unit,
+    onLoadSubtitle     : () -> Unit
 ) {
     Column(
         modifier = modifier
@@ -352,19 +435,29 @@ private fun PortraitScreen(
                 .aspectRatio(16f / 9f)
         ) {
             // Player surface
+            val playerModifier = Modifier
+                .align(Alignment.Center)
+                .then(
+                    if (aspectMode.frameRatio != null) Modifier.fillMaxHeight().aspectRatio(aspectMode.frameRatio)
+                    else Modifier.fillMaxSize()
+                )
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
                         player      = exoPlayer
                         useController = false
-                        resizeMode  = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        resizeMode  = aspectMode.resizeMode
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                update = { view ->
+                    view.player = exoPlayer
+                    view.resizeMode = aspectMode.resizeMode
+                },
+                modifier = playerModifier
             )
 
             // Gradiente superior
@@ -395,19 +488,39 @@ private fun PortraitScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(Unit) {
+                    .pointerInput(controlsLocked) {
+                        if (!controlsLocked) {
+                        var lastTapTime = 0L
+                        var lastTapX = 0f
                         awaitEachGesture {
-                            var lastTapTime = 0L
-                            var lastTapX    = 0f
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val startX = down.position.x
+                            val downMs = System.currentTimeMillis()
+                            var totalDx = 0f
+                            var totalDy = 0f
+                            var verticalDrag = false
                             while (true) {
-                                val down    = awaitFirstDown(requireUnconsumed = false)
-                                val startX  = down.position.x
-                                val downMs  = System.currentTimeMillis()
-                                // espera release
-                                while (true) {
-                                    val ev = awaitPointerEvent()
-                                    if (ev.changes.none { it.pressed }) break
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: break
+                                if (!change.pressed) break
+                                val dx = change.position.x - change.previousPosition.x
+                                val dy = change.position.y - change.previousPosition.y
+                                totalDx += dx
+                                totalDy += dy
+                                when {
+                                    abs(totalDx) > 24f && abs(totalDx) > abs(totalDy) -> change.consume()
+                                    abs(totalDy) > 18f && abs(totalDy) > abs(totalDx) -> {
+                                        verticalDrag = true
+                                        change.consume()
+                                        val delta = -dy / size.height.toFloat() * 2.2f
+                                        if (startX < size.width / 2f) onBrightnessChange((brightness + delta).coerceIn(0f, 1f))
+                                        else onVolumeChange((volumeFraction + delta).coerceIn(0f, 1f))
+                                    }
                                 }
+                            }
+                            if (abs(totalDx) > 70f && abs(totalDx) > abs(totalDy)) {
+                                onHorizontalSeek(totalDx / size.width.toFloat())
+                            } else if (!verticalDrag) {
                                 val elapsed = System.currentTimeMillis() - downMs
                                 if (elapsed < 250L) {
                                     val sinceLast = downMs - lastTapTime
@@ -416,10 +529,11 @@ private fun PortraitScreen(
                                         lastTapTime = 0L
                                     } else {
                                         lastTapTime = downMs
-                                        lastTapX    = startX
+                                        lastTapX = startX
                                     }
                                 }
                             }
+                        }
                         }
                     }
             )
@@ -436,6 +550,16 @@ private fun PortraitScreen(
             ) {
                 NxIconBtn(Icons.AutoMirrored.Filled.ArrowBack, "Volver", onClick = onClose)
                 Spacer(Modifier.weight(1f))
+                NxIconBtn(
+                    if (controlsLocked) Icons.Filled.LockOpen else Icons.Filled.Lock,
+                    if (controlsLocked) "Desbloquear" else "Bloquear controles",
+                    onClick = onToggleLock
+                )
+                VideoOptionsButton(
+                    aspectMode = aspectMode,
+                    onAspectModeSelected = onAspectModeSelected,
+                    onLoadSubtitle = onLoadSubtitle
+                )
                 NxIconBtn(Icons.Filled.Fullscreen, "Pantalla completa", onClick = onEnterFullscreen)
             }
 
@@ -457,7 +581,30 @@ private fun PortraitScreen(
             }
         }
 
+        if (controlsLocked) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White.copy(alpha = 0.08f),
+                border = BorderStroke(1.dp, NxDivider)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(Icons.Filled.Lock, null, tint = NxAccent, modifier = Modifier.size(20.dp))
+                    Text("Controles bloqueados", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.weight(1f))
+                    Text("Toca el candado para desbloquear", color = Color.White.copy(0.48f), fontSize = 12.sp)
+                }
+            }
+        }
+
         // ── Panel de controles (scrollable) ────────────────────────────────────
+        if (!controlsLocked) {
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -615,6 +762,7 @@ private fun PortraitScreen(
 
             Spacer(Modifier.height(4.dp))
         }
+        }
     }
 }
 
@@ -627,6 +775,8 @@ private fun LandscapeScreen(
     modifier           : Modifier = Modifier,
     exoPlayer          : androidx.media3.common.Player,
     currentItem        : MediaEntry,
+    aspectMode         : VideoAspectMode,
+    controlsLocked     : Boolean,
     queue              : List<MediaEntry>,
     queueFromCurrent   : List<MediaEntry>,
     queueStartIndex    : Int,
@@ -645,6 +795,7 @@ private fun LandscapeScreen(
     onDoubleTapRight   : () -> Unit,
     onBrightnessSwipe  : (Float) -> Unit,
     onVolumeSwipe      : (Float) -> Unit,
+    onHorizontalSeek   : (Float) -> Unit,
     onSeekTo           : (Long) -> Unit,
     onPrevious         : () -> Unit,
     onTogglePlay       : () -> Unit,
@@ -652,6 +803,9 @@ private fun LandscapeScreen(
     onExitFullscreen   : () -> Unit,
     onToggleQueue      : () -> Unit,
     onBack             : () -> Unit,
+    onToggleLock       : () -> Unit,
+    onAspectModeSelected: (VideoAspectMode) -> Unit,
+    onLoadSubtitle     : () -> Unit,
     onJumpToQueueIndex : (Int) -> Unit
 ) {
     Box(
@@ -665,12 +819,16 @@ private fun LandscapeScreen(
                 PlayerView(ctx).apply {
                     player        = exoPlayer
                     useController = false
-                    resizeMode    = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    resizeMode    = aspectMode.resizeMode
                     layoutParams  = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                 }
+            },
+            update = { view ->
+                view.player = exoPlayer
+                view.resizeMode = aspectMode.resizeMode
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -680,53 +838,58 @@ private fun LandscapeScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    // Variables persistentes entre gestos dentro del mismo pointerInput
+                .pointerInput(controlsLocked) {
+                    if (!controlsLocked) {
                     var lastTapTime = 0L
-                    var lastTapX    = 0f
+                    var lastTapX = 0f
 
                     awaitEachGesture {
-                        val down    = awaitFirstDown(requireUnconsumed = false)
-                        val startX  = down.position.x
-                        val downMs  = System.currentTimeMillis()
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val startX = down.position.x
+                        val downMs = System.currentTimeMillis()
+                        var totalDx = 0f
                         var totalDy = 0f
-                        var didDrag = false
+                        var verticalDrag = false
 
                         while (true) {
-                            val event  = awaitPointerEvent()
+                            val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull() ?: break
                             if (!change.pressed) break
 
+                            val dx = change.position.x - change.previousPosition.x
                             val dy = change.position.y - change.previousPosition.y
+                            totalDx += dx
                             totalDy += dy
 
-                            if (abs(totalDy) > 18f) {
-                                didDrag = true
-                                change.consume()
-                                // dy negativo = mover hacia arriba = aumentar
-                                val delta = -dy / size.height.toFloat() * 2.2f
-                                if (startX < size.width / 2f) onBrightnessSwipe(delta)
-                                else onVolumeSwipe(delta)
+                            when {
+                                abs(totalDx) > 28f && abs(totalDx) > abs(totalDy) -> change.consume()
+                                abs(totalDy) > 18f && abs(totalDy) > abs(totalDx) -> {
+                                    verticalDrag = true
+                                    change.consume()
+                                    val delta = -dy / size.height.toFloat() * 2.2f
+                                    if (startX < size.width / 2f) onBrightnessSwipe(delta)
+                                    else onVolumeSwipe(delta)
+                                }
                             }
                         }
 
-                        if (!didDrag) {
-                            val elapsed   = System.currentTimeMillis() - downMs
+                        if (abs(totalDx) > 80f && abs(totalDx) > abs(totalDy)) {
+                            onHorizontalSeek(totalDx / size.width.toFloat())
+                        } else if (!verticalDrag) {
+                            val elapsed = System.currentTimeMillis() - downMs
                             if (elapsed < 280L) {
                                 val sinceLast = downMs - lastTapTime
                                 if (sinceLast < 360L) {
-                                    // Doble tap → seek
-                                    if (lastTapX < size.width / 2f) onDoubleTapLeft()
-                                    else onDoubleTapRight()
+                                    if (lastTapX < size.width / 2f) onDoubleTapLeft() else onDoubleTapRight()
                                     lastTapTime = 0L
                                 } else {
-                                    // Tap simple → toggle controles
                                     lastTapTime = downMs
-                                    lastTapX    = startX
+                                    lastTapX = startX
                                     onToggleControls()
                                 }
                             }
                         }
+                    }
                     }
                 }
         )
@@ -786,6 +949,8 @@ private fun LandscapeScreen(
             LandscapeControls(
                 modifier           = Modifier.fillMaxSize().zIndex(2f),
                 currentItem        = currentItem,
+                aspectMode         = aspectMode,
+                controlsLocked     = controlsLocked,
                 queueCount         = queue.size,
                 queueFromCurrent   = queueFromCurrent,
                 queueStartIndex    = queueStartIndex,
@@ -799,6 +964,9 @@ private fun LandscapeScreen(
                 onExitFullscreen   = onExitFullscreen,
                 onToggleQueue      = onToggleQueue,
                 onBack             = onBack,
+                onToggleLock       = onToggleLock,
+                onAspectModeSelected = onAspectModeSelected,
+                onLoadSubtitle     = onLoadSubtitle,
                 onJumpToQueueIndex = onJumpToQueueIndex
             )
         }
@@ -832,6 +1000,8 @@ private fun LandscapeScreen(
 private fun LandscapeControls(
     modifier           : Modifier = Modifier,
     currentItem        : MediaEntry,
+    aspectMode         : VideoAspectMode,
+    controlsLocked     : Boolean,
     queueCount         : Int,
     queueFromCurrent   : List<MediaEntry>,
     queueStartIndex    : Int,
@@ -845,6 +1015,9 @@ private fun LandscapeControls(
     onExitFullscreen   : () -> Unit,
     onToggleQueue      : () -> Unit,
     onBack             : () -> Unit,
+    onToggleLock       : () -> Unit,
+    onAspectModeSelected: (VideoAspectMode) -> Unit,
+    onLoadSubtitle     : () -> Unit,
     onJumpToQueueIndex : (Int) -> Unit
 ) {
     Box(modifier = modifier) {
@@ -900,12 +1073,46 @@ private fun LandscapeControls(
                     maxLines = 1
                 )
             }
-            if (queueCount > 1) {
+            if (queueCount > 1 && !controlsLocked) {
                 NxIconBtn(Icons.AutoMirrored.Filled.PlaylistPlay, "Playlist", onClick = onToggleQueue)
+            }
+            NxIconBtn(
+                if (controlsLocked) Icons.Filled.LockOpen else Icons.Filled.Lock,
+                if (controlsLocked) "Desbloquear" else "Bloquear controles",
+                onClick = onToggleLock
+            )
+            if (!controlsLocked) {
+                VideoOptionsButton(
+                    aspectMode = aspectMode,
+                    onAspectModeSelected = onAspectModeSelected,
+                    onLoadSubtitle = onLoadSubtitle
+                )
             }
             NxIconBtn(Icons.Filled.FullscreenExit, "Salir", onClick = onExitFullscreen)
         }
 
+        if (controlsLocked) {
+            Surface(
+                modifier = Modifier.align(Alignment.Center),
+                shape = RoundedCornerShape(22.dp),
+                color = Color.Black.copy(alpha = 0.62f),
+                border = BorderStroke(1.dp, NxAccent.copy(alpha = 0.35f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(Icons.Filled.Lock, null, tint = NxAccent, modifier = Modifier.size(22.dp))
+                    Column {
+                        Text("Pantalla bloqueada", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Toca el candado para desbloquear", color = Color.White.copy(0.58f), fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        if (!controlsLocked) {
         // ── Botón play/pause central ──────────────────────────────────────────
         Box(
             modifier = Modifier
@@ -990,6 +1197,7 @@ private fun LandscapeControls(
                 )
             }
         }
+        }
     }
 }
 
@@ -1014,6 +1222,46 @@ private fun NxIconBtn(
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(20.dp))
+    }
+}
+
+
+@Composable
+private fun VideoOptionsButton(
+    aspectMode: VideoAspectMode,
+    onAspectModeSelected: (VideoAspectMode) -> Unit,
+    onLoadSubtitle: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        NxIconBtn(Icons.Filled.MoreVert, "Más opciones", onClick = { expanded = true })
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Subtítulos .srt externos") },
+                leadingIcon = { Icon(Icons.Filled.Subtitles, null) },
+                onClick = {
+                    expanded = false
+                    onLoadSubtitle()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Relación: ${aspectMode.label}") },
+                leadingIcon = { Icon(Icons.Filled.AspectRatio, null) },
+                onClick = { }
+            )
+            VideoAspectMode.values().forEach { mode ->
+                DropdownMenuItem(
+                    text = { Text(if (mode == aspectMode) "✓ ${mode.label}" else mode.label) },
+                    onClick = {
+                        expanded = false
+                        onAspectModeSelected(mode)
+                    }
+                )
+            }
+        }
     }
 }
 
