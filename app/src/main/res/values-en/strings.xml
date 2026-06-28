@@ -150,4 +150,5 @@
     <string name="queue_next">Up next</string>
     <string name="queue_empty_short">There are no more items in the queue.</string>
     <string name="save">Save</string>
+    <string name="widget_description">Nexora Player widget with artwork, lyrics and controls</string>
 </resources>

@@ -1,14 +1,19 @@
 package com.nexora.player.ui.screens
 
 import android.app.Activity
+import android.content.ContentValues
+import android.content.Intent
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.os.Build
 import android.media.AudioManager
+import android.provider.MediaStore
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -50,7 +55,10 @@ import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
@@ -59,6 +67,8 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -66,10 +76,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -163,6 +175,26 @@ fun VideoPlayerScreen(
     val aspectMode = remember(aspectModeName) { VideoAspectMode.fromName(aspectModeName) }
     val subtitleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { PlayerEngine.setExternalSubtitle(context, it) }
+    }
+    var renameDialogItem by remember { mutableStateOf<MediaEntry?>(null) }
+    var renameValue by rememberSaveable { mutableStateOf("") }
+    var pendingRename by remember { mutableStateOf<Pair<MediaEntry, String>?>(null) }
+    var pendingDelete by remember { mutableStateOf<MediaEntry?>(null) }
+    val renamePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val target = pendingRename
+        pendingRename = null
+        if (result.resultCode == Activity.RESULT_OK && target != null) {
+            runCatching { renameVideoFile(context, target.first, target.second) }
+        }
+    }
+    val deletePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val target = pendingDelete
+        pendingDelete = null
+        if (result.resultCode == Activity.RESULT_OK && target != null) {
+            videoResumePrefs.edit().remove("video_${target.id}").apply()
+            PlayerEngine.clear(context)
+            onClose()
+        }
     }
 
     val configuration = LocalConfiguration.current
@@ -289,6 +321,50 @@ fun VideoPlayerScreen(
         if (deltaMs != 0L) seekBy(deltaMs)
     }
 
+    fun shareCurrentVideo() {
+        val item = currentItem ?: return
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = item.mimeType ?: "video/*"
+            putExtra(Intent.EXTRA_STREAM, item.uri)
+            putExtra(Intent.EXTRA_TEXT, item.title)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, "Compartir video")) }
+    }
+
+    fun editCurrentVideo() {
+        val item = currentItem ?: return
+        val intent = Intent(Intent.ACTION_EDIT).apply {
+            setDataAndType(item.uri, item.mimeType ?: "video/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, "Editar video")) }
+    }
+
+    fun requestRenameVideo(item: MediaEntry, newName: String) {
+        val cleanName = newName.trim()
+        if (cleanName.isBlank()) return
+        val safeName = cleanName.withVideoExtension(item)
+        val result = runCatching { renameVideoFile(context, item, safeName) }
+        val throwable = result.exceptionOrNull()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && throwable is android.app.RecoverableSecurityException) {
+            pendingRename = item to safeName
+            renamePermissionLauncher.launch(IntentSenderRequest.Builder(throwable.userAction.actionIntent.intentSender).build())
+        }
+    }
+
+    fun requestDeleteVideo(item: MediaEntry) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val request = MediaStore.createDeleteRequest(context.contentResolver, listOf(item.uri))
+            pendingDelete = item
+            deletePermissionLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+        } else {
+            runCatching { context.contentResolver.delete(item.uri, null, null) }
+            PlayerEngine.clear(context)
+            onClose()
+        }
+    }
+
     if (currentItem == null) {
         Box(
             modifier = modifier.fillMaxSize().background(NxBg),
@@ -352,6 +428,10 @@ fun VideoPlayerScreen(
             onToggleLock          = { controlsLocked = !controlsLocked; landscapeControlsVisible = true },
             onAspectModeSelected  = { aspectModeName = it.name; landscapeControlsVisible = true },
             onLoadSubtitle        = { subtitleLauncher.launch("application/x-subrip") },
+            onShareVideo          = ::shareCurrentVideo,
+            onRenameVideo         = { item -> renameDialogItem = item; renameValue = item.title },
+            onEditVideo           = ::editCurrentVideo,
+            onDeleteVideo         = { item -> requestDeleteVideo(item) },
             onJumpToQueueIndex    = { idx ->
                 PlayerEngine.jumpTo(context, idx)
                 showQueuePanel = false
@@ -397,6 +477,10 @@ fun VideoPlayerScreen(
             onToggleLock          = { controlsLocked = !controlsLocked; landscapeControlsVisible = true },
             onAspectModeSelected  = { aspectModeName = it.name; landscapeControlsVisible = true },
             onLoadSubtitle        = { subtitleLauncher.launch("application/x-subrip") },
+            onShareVideo          = ::shareCurrentVideo,
+            onRenameVideo         = { item -> renameDialogItem = item; renameValue = item.title },
+            onEditVideo           = ::editCurrentVideo,
+            onDeleteVideo         = { item -> requestDeleteVideo(item) },
             onJumpToQueueIndex    = { idx ->
                 PlayerEngine.jumpTo(context, idx)
                 showQueuePanel = false
@@ -404,6 +488,35 @@ fun VideoPlayerScreen(
             }
         )
     }
+
+    val renameTarget = renameDialogItem
+    if (renameTarget != null) {
+        AlertDialog(
+            onDismissRequest = { renameDialogItem = null },
+            title = { Text("Renombrar video") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Cambia el nombre visible del archivo. Android puede pedir permiso para modificarlo.")
+                    OutlinedTextField(
+                        value = renameValue,
+                        onValueChange = { renameValue = it },
+                        label = { Text("Nombre del archivo") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    requestRenameVideo(renameTarget, renameValue)
+                    renameDialogItem = null
+                }) { Text("Guardar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameDialogItem = null }) { Text("Cancelar") }
+            }
+        )
+    }
+
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -438,7 +551,11 @@ private fun PortraitScreen(
     onHorizontalSeek   : (Float) -> Unit,
     onToggleLock       : () -> Unit,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
-    onLoadSubtitle     : () -> Unit
+    onLoadSubtitle     : () -> Unit,
+    onShareVideo       : () -> Unit,
+    onRenameVideo      : (MediaEntry) -> Unit,
+    onEditVideo        : () -> Unit,
+    onDeleteVideo      : (MediaEntry) -> Unit
 ) {
     Column(
         modifier = modifier
@@ -576,7 +693,11 @@ private fun PortraitScreen(
                 VideoOptionsButton(
                     aspectMode = aspectMode,
                     onAspectModeSelected = onAspectModeSelected,
-                    onLoadSubtitle = onLoadSubtitle
+                    onLoadSubtitle = onLoadSubtitle,
+                    onShareVideo = onShareVideo,
+                    onRenameVideo = { onRenameVideo(currentItem) },
+                    onEditVideo = onEditVideo,
+                    onDeleteVideo = { onDeleteVideo(currentItem) }
                 )
                 NxIconBtn(Icons.Filled.Fullscreen, "Pantalla completa", onClick = onEnterFullscreen)
             }
@@ -825,6 +946,10 @@ private fun LandscapeScreen(
     onToggleLock       : () -> Unit,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
     onLoadSubtitle     : () -> Unit,
+    onShareVideo       : () -> Unit,
+    onRenameVideo      : (MediaEntry) -> Unit,
+    onEditVideo        : () -> Unit,
+    onDeleteVideo      : (MediaEntry) -> Unit,
     onJumpToQueueIndex : (Int) -> Unit
 ) {
     Box(
@@ -1039,6 +1164,10 @@ private fun LandscapeControls(
     onToggleLock       : () -> Unit,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
     onLoadSubtitle     : () -> Unit,
+    onShareVideo       : () -> Unit,
+    onRenameVideo      : (MediaEntry) -> Unit,
+    onEditVideo        : () -> Unit,
+    onDeleteVideo      : (MediaEntry) -> Unit,
     onJumpToQueueIndex : (Int) -> Unit
 ) {
     Box(modifier = modifier) {
@@ -1103,7 +1232,11 @@ private fun LandscapeControls(
                 VideoOptionsButton(
                     aspectMode = aspectMode,
                     onAspectModeSelected = onAspectModeSelected,
-                    onLoadSubtitle = onLoadSubtitle
+                    onLoadSubtitle = onLoadSubtitle,
+                    onShareVideo = onShareVideo,
+                    onRenameVideo = { onRenameVideo(currentItem) },
+                    onEditVideo = onEditVideo,
+                    onDeleteVideo = { onDeleteVideo(currentItem) }
                 )
             }
             NxIconBtn(
@@ -1252,7 +1385,11 @@ private fun NxIconBtn(
 private fun VideoOptionsButton(
     aspectMode: VideoAspectMode,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
-    onLoadSubtitle: () -> Unit
+    onLoadSubtitle: () -> Unit,
+    onShareVideo: () -> Unit,
+    onRenameVideo: () -> Unit,
+    onEditVideo: () -> Unit,
+    onDeleteVideo: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -1261,6 +1398,38 @@ private fun VideoOptionsButton(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
+            DropdownMenuItem(
+                text = { Text("Compartir video") },
+                leadingIcon = { Icon(Icons.Filled.Share, null) },
+                onClick = {
+                    expanded = false
+                    onShareVideo()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Renombrar archivo") },
+                leadingIcon = { Icon(Icons.Filled.Edit, null) },
+                onClick = {
+                    expanded = false
+                    onRenameVideo()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Editar con otra app") },
+                leadingIcon = { Icon(Icons.Filled.Edit, null) },
+                onClick = {
+                    expanded = false
+                    onEditVideo()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Borrar archivo") },
+                leadingIcon = { Icon(Icons.Filled.Delete, null) },
+                onClick = {
+                    expanded = false
+                    onDeleteVideo()
+                }
+            )
             DropdownMenuItem(
                 text = { Text("Subtítulos .srt externos") },
                 leadingIcon = { Icon(Icons.Filled.Subtitles, null) },
@@ -1558,6 +1727,27 @@ private fun SeekFeedbackHud(deltaMs: Long, modifier: Modifier = Modifier) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+private fun renameVideoFile(context: Context, item: MediaEntry, newName: String) {
+    val values = ContentValues().apply {
+        put(MediaStore.MediaColumns.DISPLAY_NAME, newName)
+        put(MediaStore.MediaColumns.TITLE, newName.substringBeforeLast('.'))
+    }
+    context.contentResolver.update(item.uri, values, null, null)
+}
+
+private fun String.withVideoExtension(item: MediaEntry): String {
+    if (contains('.')) return this
+    val extension = when (item.mimeType?.lowercase()) {
+        "video/mp4" -> ".mp4"
+        "video/x-matroska" -> ".mkv"
+        "video/webm" -> ".webm"
+        "video/3gpp" -> ".3gp"
+        "video/quicktime" -> ".mov"
+        else -> ".mp4"
+    }
+    return this + extension
+}
+
 private fun Context.findActivity(): Activity? = when (this) {
     is Activity      -> this
     is ContextWrapper -> baseContext.findActivity()

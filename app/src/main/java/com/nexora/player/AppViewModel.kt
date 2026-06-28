@@ -676,13 +676,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteFromLibrary(entry: MediaEntry) {
         viewModelScope.launch {
-            try {
+            runCatching {
                 context.contentResolver.delete(entry.uri, null, null)
-            } finally {
-                cleanupAfterMediaChange(entry)
-                preferencesRepository.removeHiddenAudioId(entry.id)
-                refreshLibrary()
             }
+            onMediaDeleted(entry)
+        }
+    }
+
+    fun onMediaDeleted(entry: MediaEntry) {
+        viewModelScope.launch {
+            cleanupAfterMediaChange(entry)
+            preferencesRepository.removeHiddenAudioId(entry.id)
+            refreshLibrary()
         }
     }
 

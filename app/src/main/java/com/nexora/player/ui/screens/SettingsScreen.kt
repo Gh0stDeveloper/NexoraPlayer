@@ -257,6 +257,7 @@ fun SettingsScreen(
     onOpenFolderManager: () -> Unit = {},
     onOpenNotificationCenter: () -> Unit = {},
     onOpenStats: () -> Unit = {},
+    onOpenThemeSelection: () -> Unit = {},
     onCheckUpdates: () -> Unit = {},
     onRestoreHiddenItem: (Long) -> Unit = {}
 ) {
@@ -325,63 +326,14 @@ fun SettingsScreen(
 
             RowDivider()
 
-            // Theme
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    SettingsIcon(Icons.Filled.Brightness4, Color(0xFF5856D6))
-                    Text(
-                        stringResource(R.string.settings_theme),
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        AppThemeMode.SYSTEM,
-                        AppThemeMode.NEXORA_DARK,
-                        AppThemeMode.IOS_LIGHT,
-                        AppThemeMode.AMOLED_BLACK,
-                        AppThemeMode.FLAMINGO,
-                        AppThemeMode.NEON,
-                        AppThemeMode.MATERIAL_YOU
-                    ).chunked(2).forEach { rowModes ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            rowModes.forEach { mode ->
-                                val selected = themeMode == mode || (themeMode == AppThemeMode.DARK && mode == AppThemeMode.NEXORA_DARK) || (themeMode == AppThemeMode.LIGHT && mode == AppThemeMode.IOS_LIGHT)
-                                FilledTonalButton(
-                                    onClick = { onThemeChange(mode) },
-                                    modifier = Modifier.weight(1f),
-                                    colors = if (selected) ButtonDefaults.filledTonalButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                                        contentColor = MaterialTheme.colorScheme.primary
-                                    ) else ButtonDefaults.filledTonalButtonColors()
-                                ) {
-                                    Text(mode.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
-                                }
-                            }
-                            if (rowModes.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-
-            RowDivider()
-
-            SettingsToggleRow(
-                icon            = Icons.Filled.Palette,
-                iconColor       = Color(0xFFFF9500),
-                title           = stringResource(R.string.settings_dynamic_color),
-                subtitle        = stringResource(R.string.settings_dynamic_color_desc),
-                checked         = dynamicColor,
-                onCheckedChange = onDynamicColorChange
+            SettingsLinkRow(
+                icon      = Icons.Filled.Brightness4,
+                iconColor = Color(0xFF5856D6),
+                title     = stringResource(R.string.settings_theme),
+                subtitle  = "Tema actual: ${themeMode.displayName}. Toca para abrir la galería de temas.",
+                onClick   = onOpenThemeSelection
             )
+
         }
 
         // ════════════════════════════════════════════════════════════════════

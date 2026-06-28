@@ -1,5 +1,12 @@
 package com.nexora.player.ui.screens
 
+import android.app.Activity
+import android.content.Intent
+import android.os.Build
+import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.SortMode
@@ -54,6 +63,39 @@ fun VideoScreen(
     onHideVideo: (MediaEntry) -> Unit = {},
     onDeleteVideo: (MediaEntry) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    var pendingDelete by remember { mutableStateOf<MediaEntry?>(null) }
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val target = pendingDelete
+        pendingDelete = null
+        if (result.resultCode == Activity.RESULT_OK && target != null) {
+            onDeleteVideo(target)
+            onRefresh()
+        }
+    }
+
+    fun requestDelete(item: MediaEntry) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val request = MediaStore.createDeleteRequest(context.contentResolver, listOf(item.uri))
+            pendingDelete = item
+            deleteLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+        } else {
+            runCatching { context.contentResolver.delete(item.uri, null, null) }
+            onDeleteVideo(item)
+            onRefresh()
+        }
+    }
+
+    fun shareVideo(item: MediaEntry) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = item.mimeType ?: "video/*"
+            putExtra(Intent.EXTRA_STREAM, item.uri)
+            putExtra(Intent.EXTRA_TEXT, item.title)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, "Compartir video")) }
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         androidx.compose.foundation.layout.Row(
             modifier = Modifier.padding(12.dp),
@@ -94,9 +136,10 @@ fun VideoScreen(
                 VideoGridCard(
                     item = item,
                     onPlay = { onPlay(items, item) },
+                    onShare = { shareVideo(item) },
                     onEdit = { onEditVideo(item) },
                     onHide = { onHideVideo(item) },
-                    onDelete = { onDeleteVideo(item) }
+                    onDelete = { requestDelete(item) }
                 )
             }
         }
@@ -107,6 +150,7 @@ fun VideoScreen(
 private fun VideoGridCard(
     item: MediaEntry,
     onPlay: () -> Unit,
+    onShare: () -> Unit,
     onEdit: () -> Unit,
     onHide: () -> Unit,
     onDelete: () -> Unit
@@ -142,6 +186,14 @@ private fun VideoGridCard(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("Compartir") },
+                            leadingIcon = { Icon(Icons.Filled.Share, null) },
+                            onClick = {
+                                menuExpanded = false
+                                onShare()
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text("Editar archivo") },
                             leadingIcon = { Icon(Icons.Filled.Edit, null) },

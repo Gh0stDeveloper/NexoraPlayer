@@ -150,4 +150,5 @@
     <string name="queue_next">Siguiente en cola</string>
     <string name="queue_empty_short">No hay más elementos en la cola.</string>
     <string name="save">Guardar</string>
+    <string name="widget_description">Widget de Nexora Player con portada, letra y controles</string>
 </resources>

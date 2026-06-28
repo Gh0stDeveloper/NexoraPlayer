@@ -67,6 +67,7 @@ import com.nexora.player.ui.screens.NowPlayingScreen
 import com.nexora.player.ui.screens.PlaylistDetailScreen
 import com.nexora.player.ui.screens.PlaylistsScreen
 import com.nexora.player.ui.screens.StatsScreen
+import com.nexora.player.ui.screens.ThemeSelectionScreen
 import com.nexora.player.ui.screens.NotificationCenterScreen
 import com.nexora.player.ui.screens.SearchResultsScreen
 import com.nexora.player.ui.screens.ReleaseNotesDialog
@@ -99,6 +100,7 @@ class MainActivity : AppCompatActivity() {
             var showFolderManager by rememberSaveable { mutableStateOf(false) }
             var showNotificationCenter by rememberSaveable { mutableStateOf(false) }
             var showStatsScreen by rememberSaveable { mutableStateOf(false) }
+            var showThemeScreen by rememberSaveable { mutableStateOf(false) }
             val greeting = rememberGreeting()
             val availableUpdate = state.updateInfo
             val shouldShowUpdateDialog = availableUpdate?.available == true && (
@@ -184,6 +186,7 @@ class MainActivity : AppCompatActivity() {
                         showFolderManager = showFolderManager,
                         showNotificationCenter = showNotificationCenter,
                         showStatsScreen = showStatsScreen,
+                        showThemeScreen = showThemeScreen,
                         onOpenPlaylist = { selectedPlaylistId = it.id },
                         onClosePlaylist = { selectedPlaylistId = null },
                         onOpenFolderManager = { showFolderManager = true },
@@ -191,7 +194,9 @@ class MainActivity : AppCompatActivity() {
                         onOpenNotificationCenter = { showNotificationCenter = true },
                         onCloseNotificationCenter = { showNotificationCenter = false },
                         onOpenStats = { showStatsScreen = true },
-                        onCloseStats = { showStatsScreen = false }
+                        onCloseStats = { showStatsScreen = false },
+                        onOpenThemeScreen = { showThemeScreen = true },
+                        onCloseThemeScreen = { showThemeScreen = false }
                     )
                 }
 
@@ -267,6 +272,7 @@ private fun AppContent(
     showFolderManager: Boolean,
     showNotificationCenter: Boolean,
     showStatsScreen: Boolean,
+    showThemeScreen: Boolean,
     onOpenPlaylist: (PlaylistEntity) -> Unit,
     onClosePlaylist: () -> Unit,
     onOpenFolderManager: () -> Unit,
@@ -274,7 +280,9 @@ private fun AppContent(
     onOpenNotificationCenter: () -> Unit,
     onCloseNotificationCenter: () -> Unit,
     onOpenStats: () -> Unit,
-    onCloseStats: () -> Unit
+    onCloseStats: () -> Unit,
+    onOpenThemeScreen: () -> Unit,
+    onCloseThemeScreen: () -> Unit
 ) {
     if (showFolderManager) {
         FolderManagerScreen(
@@ -307,6 +315,18 @@ private fun AppContent(
             modifier = modifier,
             stats = state.playbackStats,
             onBack = onCloseStats
+        )
+        return
+    }
+
+    if (showThemeScreen) {
+        ThemeSelectionScreen(
+            modifier = modifier,
+            selectedTheme = state.preferences.themeMode,
+            dynamicColor = state.preferences.dynamicColor,
+            onBack = onCloseThemeScreen,
+            onThemeSelected = viewModel::setThemeMode,
+            onDynamicColorChange = viewModel::setDynamicColor
         )
         return
     }
@@ -369,7 +389,8 @@ private fun AppContent(
         onOpenPlaylist = onOpenPlaylist,
         onOpenFolderManager = onOpenFolderManager,
         onOpenNotificationCenter = onOpenNotificationCenter,
-        onOpenStats = onOpenStats
+        onOpenStats = onOpenStats,
+        onOpenThemeScreen = onOpenThemeScreen
     )
 }
 
@@ -382,7 +403,8 @@ private fun DestinationPagerContent(
     onOpenPlaylist: (PlaylistEntity) -> Unit,
     onOpenFolderManager: () -> Unit,
     onOpenNotificationCenter: () -> Unit,
-    onOpenStats: () -> Unit
+    onOpenStats: () -> Unit,
+    onOpenThemeScreen: () -> Unit
 ) {
     val destinations = listOf(
         AppDestination.MUSIC,
@@ -440,7 +462,7 @@ private fun DestinationPagerContent(
                 onSortSelected = viewModel::setVideoSort,
                 onEditVideo = viewModel::editMediaFile,
                 onHideVideo = viewModel::hideFromLibrary,
-                onDeleteVideo = viewModel::deleteFromLibrary
+                onDeleteVideo = viewModel::onMediaDeleted
             )
 
             AppDestination.PLAYLISTS -> PlaylistsScreen(
@@ -449,7 +471,7 @@ private fun DestinationPagerContent(
                 onCreatePlaylist = viewModel::createPlaylist,
                 onDeletePlaylist = viewModel::deletePlaylist,
                 onOpenPlaylist = onOpenPlaylist,
-                playlistPreviewItems = { playlistId -> viewModel.playlistPreviewItems(playlistId) }
+                playlistPreviewItems = { playlistId -> viewModel.playlistItems(playlistId) }
             )
 
             AppDestination.FAVORITES -> FavoritesScreen(
@@ -503,6 +525,7 @@ private fun DestinationPagerContent(
                 onOpenFolderManager = onOpenFolderManager,
                 onOpenNotificationCenter = onOpenNotificationCenter,
                 onOpenStats = onOpenStats,
+                onOpenThemeSelection = onOpenThemeScreen,
                 onCheckUpdates = { viewModel.checkForUpdates(showDialogOnAvailable = true) }
             )
 

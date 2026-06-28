@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import androidx.appcompat.app.AppCompatDelegate
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.provider.MediaStore
 import androidx.activity.ComponentActivity
@@ -128,6 +129,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 // ---------------------------------------------------------------------------
@@ -526,6 +528,30 @@ fun AudioPlayerScreen(
 
                 Spacer(Modifier.height(10.dp))
 
+                NexoraVolumePanel(
+                    preferences = appPreferences,
+                    onSystemVolumeChange = { percent ->
+                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                        val maxVolume = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)?.coerceAtLeast(1) ?: 1
+                        audioManager?.setStreamVolume(
+                            AudioManager.STREAM_MUSIC,
+                            ((percent.coerceIn(0f, 1f)) * maxVolume).roundToInt().coerceIn(0, maxVolume),
+                            if (appPreferences.volumeBoostEnabled) 0 else AudioManager.FLAG_SHOW_UI
+                        )
+                    },
+                    onBoostChange = { gainMb ->
+                        val safeGain = gainMb.coerceIn(0, 1800)
+                        PlayerEngine.setVolumeBoost(appPreferences.volumeBoostEnabled, safeGain)
+                        scope.launch { preferencesRepository.setVolumeBoostGainMb(safeGain) }
+                    },
+                    onToggleBoost = { enabled ->
+                        PlayerEngine.setVolumeBoost(enabled, appPreferences.volumeBoostGainMb)
+                        scope.launch { preferencesRepository.setVolumeBoostEnabled(enabled) }
+                    }
+                )
+
+                Spacer(Modifier.height(10.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -716,6 +742,86 @@ private fun PlayerTopBar(
                         ArtworkStyle.TILE   -> "Cambiar a disco"
                     },
                     tint = Color.White
+                )
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun NexoraVolumePanel(
+    preferences: AppPreferences,
+    onSystemVolumeChange: (Float) -> Unit,
+    onBoostChange: (Int) -> Unit,
+    onToggleBoost: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val audioManager = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
+    val maxVolume = remember(audioManager) { audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)?.coerceAtLeast(1) ?: 1 }
+    var systemVolume by remember {
+        mutableStateOf((audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC)?.toFloat() ?: 0f) / maxVolume.toFloat())
+    }
+    val extraPercent = (preferences.volumeBoostGainMb / 1800f).coerceIn(0f, 1f) * 50f
+    val displayPercent = ((systemVolume.coerceIn(0f, 1f) * 100f) + if (preferences.volumeBoostEnabled) extraPercent else 0f).roundToInt()
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White.copy(alpha = 0.07f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(Icons.Filled.VolumeUp, contentDescription = null, tint = Color.White.copy(alpha = 0.84f), modifier = Modifier.size(20.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Volumen Nexora", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+                    Text(
+                        if (preferences.volumeBoostEnabled) "Amplificado: $displayPercent%" else "Sistema: ${(systemVolume * 100).roundToInt()}%",
+                        color = Color.White.copy(alpha = 0.56f),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+                TextButton(onClick = { onToggleBoost(!preferences.volumeBoostEnabled) }) {
+                    Text(if (preferences.volumeBoostEnabled) "Boost ON" else "Boost OFF")
+                }
+            }
+
+            Slider(
+                value = systemVolume.coerceIn(0f, 1f),
+                onValueChange = { value ->
+                    systemVolume = value
+                    onSystemVolumeChange(value)
+                },
+                colors = SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = if (preferences.volumeBoostEnabled) NxAccent else Color.White,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.18f)
+                )
+            )
+
+            if (preferences.volumeBoostEnabled) {
+                Slider(
+                    value = preferences.volumeBoostGainMb.toFloat().coerceIn(0f, 1800f),
+                    onValueChange = { onBoostChange(it.roundToInt()) },
+                    valueRange = 0f..1800f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = NxAccent,
+                        activeTrackColor = NxAccent,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.18f)
+                    )
+                )
+                Text(
+                    "Extra: +${extraPercent.roundToInt()}% · recomendado usar con cuidado",
+                    color = Color.White.copy(alpha = 0.52f),
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
         }
