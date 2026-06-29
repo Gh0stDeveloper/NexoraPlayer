@@ -326,7 +326,7 @@ fun MusicScreen(
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
                             context.startActivity(
-                                Intent.createChooser(intent, stringResource(R.string.music_share_chooser, item.title))
+                                Intent.createChooser(intent, context.getString(R.string.music_share_chooser, item.title))
                             )
                             selectedItem = null
                         }
