@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 
 data class AppUiState(
@@ -75,6 +76,7 @@ data class AppUiState(
     val updateChecking: Boolean = false,
     val updateError: String? = null,
     val updateDialogDismissedInSession: Boolean = false,
+    val forceShowUpdateDialog: Boolean = false,
     val updateInstallState: UpdateInstallState = UpdateInstallState(),
     val shareUrl: String = BuildConfig.NEXORA_SERVER_URL,
     val remoteNotices: List<RemoteNoticeEntity> = emptyList(),
@@ -84,7 +86,8 @@ data class AppUiState(
     val nexoraVolumeOverlayVisible: Boolean = false
 )
 
-private const val AUTO_PLAYLIST_ID = Long.MIN_VALUE + 42L
+const val NEXORA_LIKED_PLAYLIST_ID = Long.MIN_VALUE + 41L
+const val NEXORA_MOST_PLAYED_PLAYLIST_ID = Long.MIN_VALUE + 42L
 
 private data class PersistedPlaybackItem(
     val id: Long,
@@ -192,6 +195,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var resumeRestored = false
     private var lastRecordedPlaybackKey: String? = null
     private var volumeOverlayJob: Job? = null
+    private var pendingUpdateAfterInstallPermission: RemoteUpdateInfo? = null
 
     init {
         observePlayback()
@@ -271,7 +275,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }.collect { bundle ->
                 _uiState.value = _uiState.value.copy(
                     favorites = bundle.favorites,
-                    playlists = mergeWithAutoPlaylist(bundle.stats, bundle.playlists),
+                    playlists = mergeWithAutoPlaylist(bundle.favorites, bundle.stats, bundle.playlists),
                     history = bundle.history,
                     onlineSavedTracks = bundle.onlineSaved,
                     playbackStats = bundle.stats,
@@ -592,6 +596,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     updateChecking = false,
                     updateError = manualNoUpdateMessage,
                     shareUrl = info.urls.share.ifBlank { updateClient.shareUrl() },
+                    forceShowUpdateDialog = showDialogOnAvailable && info.available,
                     updateDialogDismissedInSession = if (showDialogOnAvailable && shouldAutoShow) {
                         false
                     } else {
@@ -602,6 +607,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = _uiState.value.copy(
                     updateChecking = false,
                     updateError = throwable.message ?: getApplication<Application>().getString(R.string.update_error_server_query),
+                    forceShowUpdateDialog = false,
                     shareUrl = updateClient.shareUrl()
                 )
             }
@@ -619,7 +625,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissUpdateDialog(postpone: Boolean) {
         val info = _uiState.value.updateInfo ?: return
-        _uiState.value = _uiState.value.copy(updateDialogDismissedInSession = true)
+        _uiState.value = _uiState.value.copy(
+            updateDialogDismissedInSession = true,
+            forceShowUpdateDialog = false
+        )
         if (postpone && !info.required) {
             viewModelScope.launch { preferencesRepository.setPostponedUpdateVersionCode(info.latestVersion.versionCode) }
         }
@@ -627,9 +636,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
 
     fun downloadAndInstallUpdate(info: RemoteUpdateInfo) {
+        if (!updateInstaller.canRequestPackageInstalls()) {
+            pendingUpdateAfterInstallPermission = info
+            updateInstaller.showInstallPermissionRequired()
+            return
+        }
+
+        pendingUpdateAfterInstallPermission = null
         viewModelScope.launch {
             updateInstaller.downloadAndOpenInstaller(info)
         }
+    }
+
+    fun openInstallPermissionSettings() {
+        updateInstaller.openInstallPermissionSettings()
+    }
+
+    fun resumeUpdateAfterInstallPermission() {
+        val pending = pendingUpdateAfterInstallPermission ?: return
+        if (updateInstaller.canRequestPackageInstalls()) {
+            downloadAndInstallUpdate(pending)
+        }
+    }
+
+    fun clearUpdateStatusMessage() {
+        _uiState.value = _uiState.value.copy(updateError = null)
     }
 
     fun clearUpdateInstallMessage() {
@@ -807,7 +838,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deletePlaylist(playlist: PlaylistEntity) {
-        if (playlist.id == AUTO_PLAYLIST_ID) return
+        if (playlist.id < 0) return
         viewModelScope.launch {
             database.playlistsDao().deleteItemsForPlaylist(playlist.id)
             database.playlistsDao().deletePlaylist(playlist.id)
@@ -819,7 +850,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addToPlaylist(playlist: PlaylistEntity, entries: List<MediaEntry>) {
-        if (playlist.id == AUTO_PLAYLIST_ID || entries.isEmpty()) return
+        if (playlist.id < 0 || entries.isEmpty()) return
         viewModelScope.launch {
             var next = database.playlistsDao().nextOrderIndex(playlist.id)
             entries.distinctBy { it.id to it.kind }.forEach { entry ->
@@ -842,30 +873,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playlistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> {
-        return if (playlistId == AUTO_PLAYLIST_ID) {
-            database.playbackStatsDao().observeTop(200).map { stats -> buildMostPlayedPlaylist(stats) }
-        } else {
-            database.playlistsDao().observeItems(playlistId)
+        return when (playlistId) {
+            NEXORA_MOST_PLAYED_PLAYLIST_ID -> {
+                database.playbackStatsDao().observeTop(200).map { stats -> buildMostPlayedPlaylist(stats) }
+            }
+            NEXORA_LIKED_PLAYLIST_ID -> {
+                database.favoritesDao().observeAll().map { favorites -> buildLikedPlaylist(favorites) }
+            }
+            else -> database.playlistsDao().observeItems(playlistId)
         }
     }
 
     fun playlistPreviewItems(playlistId: Long): Flow<List<PlaylistItemEntity>> {
-        return if (playlistId == AUTO_PLAYLIST_ID) {
-            database.playbackStatsDao().observeTop(200).map { stats -> buildMostPlayedPlaylist(stats).take(4) }
-        } else {
-            database.playlistsDao().observeItems(playlistId).map { it.take(4) }
+        return when (playlistId) {
+            NEXORA_MOST_PLAYED_PLAYLIST_ID -> {
+                database.playbackStatsDao().observeTop(200).map { stats -> buildMostPlayedPlaylist(stats).take(4) }
+            }
+            NEXORA_LIKED_PLAYLIST_ID -> {
+                database.favoritesDao().observeAll().map { favorites -> buildLikedPlaylist(favorites).take(4) }
+            }
+            else -> database.playlistsDao().observeItems(playlistId).map { it.take(4) }
         }
     }
 
     fun renamePlaylist(playlist: PlaylistEntity, name: String) {
-        if (playlist.id == AUTO_PLAYLIST_ID || name.isBlank()) return
+        if (playlist.id < 0 || name.isBlank()) return
         viewModelScope.launch {
             database.playlistsDao().updatePlaylist(playlist.copy(name = name.trim(), updatedAt = System.currentTimeMillis()))
         }
     }
 
     fun duplicatePlaylist(playlist: PlaylistEntity, items: List<PlaylistItemEntity>) {
-        if (playlist.id == AUTO_PLAYLIST_ID) return
+        if (playlist.id < 0) return
         viewModelScope.launch {
             val newId = database.playlistsDao().insertPlaylist(
                 PlaylistEntity(name = getApplication<Application>().getString(R.string.playlist_copy_suffix, playlist.name))
@@ -877,7 +916,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun exportPlaylist(playlist: PlaylistEntity, items: List<PlaylistItemEntity>) {
-        if (playlist.id == AUTO_PLAYLIST_ID) return
+        if (playlist.id < 0) return
         viewModelScope.launch {
             val dir = java.io.File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC), "Playlists")
             dir.mkdirs()
@@ -909,6 +948,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun removeFromPlaylist(itemId: Long) {
         viewModelScope.launch {
             database.playlistsDao().deletePlaylistItem(itemId)
+        }
+    }
+
+    fun removeFavoritePlaylistItem(item: PlaylistItemEntity) {
+        viewModelScope.launch {
+            database.favoritesDao().delete(item.mediaId, item.mediaKind)
         }
     }
 
@@ -1029,23 +1074,55 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
 
     private fun mergeWithAutoPlaylist(
+        favorites: List<FavoriteMediaEntity>,
         stats: List<PlaybackStatsEntity>,
         playlists: List<PlaylistEntity>
     ): List<PlaylistEntity> {
-        val auto = PlaylistEntity(
-            id = AUTO_PLAYLIST_ID,
+        val liked = PlaylistEntity(
+            id = NEXORA_LIKED_PLAYLIST_ID,
+            name = getApplication<Application>().getString(R.string.playlist_liked_songs),
+            createdAt = 0L,
+            updatedAt = favorites.filter { it.mediaKind == MediaKind.AUDIO.name }.maxOfOrNull { it.addedAt } ?: 0L
+        )
+        val mostPlayed = PlaylistEntity(
+            id = NEXORA_MOST_PLAYED_PLAYLIST_ID,
             name = getApplication<Application>().getString(R.string.playlist_most_played),
             createdAt = 0L,
-            updatedAt = stats.maxOfOrNull { it.lastPlayedAt } ?: 0L
+            updatedAt = stats.filter { it.mediaKind == MediaKind.AUDIO.name }.maxOfOrNull { it.lastPlayedAt } ?: 0L
         )
         return buildList {
-            add(auto)
-            addAll(playlists.filterNot { it.id == AUTO_PLAYLIST_ID })
+            add(liked)
+            add(mostPlayed)
+            addAll(playlists.filterNot { it.id < 0 })
         }
     }
 
     private fun buildMostPlayedPlaylist(stats: List<PlaybackStatsEntity>): List<PlaylistItemEntity> {
-        return presentation.playlists.mostPlayedItems(stats, AUTO_PLAYLIST_ID)
+        return presentation.playlists.mostPlayedItems(
+            stats.filter { it.mediaKind == MediaKind.AUDIO.name },
+            NEXORA_MOST_PLAYED_PLAYLIST_ID
+        )
+    }
+
+    private fun buildLikedPlaylist(favorites: List<FavoriteMediaEntity>): List<PlaylistItemEntity> {
+        return favorites
+            .filter { it.mediaKind == MediaKind.AUDIO.name }
+            .sortedByDescending { it.addedAt }
+            .mapIndexed { index, favorite ->
+                PlaylistItemEntity(
+                    id = -("${favorite.mediaKind}:${favorite.mediaId}".hashCode().toLong().absoluteValue.coerceAtLeast(1L)),
+                    playlistId = NEXORA_LIKED_PLAYLIST_ID,
+                    mediaId = favorite.mediaId,
+                    mediaKind = favorite.mediaKind,
+                    title = favorite.title,
+                    artist = favorite.artist,
+                    album = favorite.album,
+                    durationMs = favorite.durationMs,
+                    uriString = favorite.uriString,
+                    orderIndex = index,
+                    addedAt = favorite.addedAt
+                )
+            }
     }
 
     private fun recordPlaybackIfNeeded(item: MediaEntry) {

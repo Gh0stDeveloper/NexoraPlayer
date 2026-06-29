@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,6 +70,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -129,6 +131,7 @@ fun SettingsScreen(
     updateChecking: Boolean = false,
     updateError: String? = null,
     currentLanguage: AppLanguage,
+    onBack: (() -> Unit)? = null,
     onThemeChange: (AppThemeMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
     onOnlineMusicSearchChange: (Boolean) -> Unit,
@@ -154,6 +157,7 @@ fun SettingsScreen(
     onOpenThemeSelection: () -> Unit = {},
     onOpenLanguageSelection: () -> Unit = {},
     onCheckUpdates: () -> Unit = {},
+    onClearUpdateMessage: () -> Unit = {},
     onRestoreHiddenItem: (Long) -> Unit = {}
 ) {
     val uriHandler      = LocalUriHandler.current
@@ -163,6 +167,34 @@ fun SettingsScreen(
     val showHiddenSheet = remember { mutableStateOf(false) }
     val showFolderSheet = remember { mutableStateOf(false) }
     val folderInput     = remember { mutableStateOf("") }
+    val updateStatusDialog = remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(updateError) {
+        if (!updateError.isNullOrBlank()) {
+            updateStatusDialog.value = updateError
+        }
+    }
+
+    updateStatusDialog.value?.let { message ->
+        AlertDialog(
+            onDismissRequest = {
+                updateStatusDialog.value = null
+                onClearUpdateMessage()
+            },
+            title = { Text(stringResource(R.string.update_status_dialog_title)) },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        updateStatusDialog.value = null
+                        onClearUpdateMessage()
+                    }
+                ) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -171,11 +203,27 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
     ) {
         // Page title
-        Text(
-            text     = stringResource(R.string.settings_title),
-            style    = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-            modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp, end = 20.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, top = 18.dp, bottom = 8.dp, end = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.action_back)
+                    )
+                }
+            }
+            Text(
+                text = stringResource(R.string.settings_title),
+                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.weight(1f)
+            )
+        }
         Spacer(Modifier.height(4.dp))
 
         // ════════════════════════════════════════════════════════════════════

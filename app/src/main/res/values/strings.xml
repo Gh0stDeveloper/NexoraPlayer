@@ -77,7 +77,7 @@
     <string name="settings_hidden_audio_desc">Hidden tracks do not appear in the main library or search.</string>
     <string name="settings_restore_hidden">Restore hidden songs</string>
     <string name="settings_developer">Developer</string>
-    <string name="settings_developer_identity">Ghost Developer · CHICO-CP</string>
+    <string name="settings_developer_identity">Ghost Developer</string>
     <string name="settings_github">GitHub</string>
     <string name="settings_profile">Telegram</string>
     <string name="settings_about_show">Show detailed description</string>
@@ -352,6 +352,8 @@ GitHub: github.com/Gh0stDeveloper
     <string name="update_required_title">Required update</string>
     <string name="update_available_title">New version available</string>
     <string name="update_notice_message">Nexora Player %1$s is now available. %2$s</string>
+    <string name="playlist_liked_desc">Saved from the like button</string>
+    <string name="playlist_liked_songs">Liked songs</string>
     <string name="playlist_most_played">Most played</string>
     <string name="apk_download_error">Could not download the update.</string>
     <string name="apk_server_error">The server responded %1$d while downloading the APK. %2$s</string>
@@ -445,7 +447,7 @@ GitHub: github.com/Gh0stDeveloper
     <string name="release_recent_body">Fixes, new features and optimizations published from the server.</string>
     <string name="release_note_fallback">Improvement included in this version.</string>
     <string name="release_preparing">Preparing update…</string>
-    <string name="release_install_permission_hint">After authorizing external installs, tap Download again.</string>
+    <string name="release_install_permission_hint">Nexora Player needs permission to install its downloaded APK. Tap Activate permission, enable “Allow from this source”, then return to the app; the download will start automatically.</string>
     <string name="release_open_browser">Open download in browser</string>
     <string name="release_required_no_later">The “Update later” option is disabled because the server marked this version as required.</string>
     <string name="release_downloading">Downloading…</string>
@@ -609,6 +611,7 @@ Third line</string>
     <string name="music_delete">Delete</string>
     <string name="action_refresh">Refresh</string>
     <string name="video_options_content">Options</string>
+    <string name="video_title_hint">Video name</string>
     <string name="video_edit_file">Edit file</string>
     <string name="video_delete_file">Delete file</string>
     <string name="video_edit_chooser">Edit video</string>
@@ -653,4 +656,7 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="apk_package_mismatch">This APK belongs to %2$s, but this app is %1$s.</string>
     <string name="apk_not_newer">The downloaded APK is not newer. Installed: %1$s (build %2$d). Downloaded: %3$s (build %4$d). Update the APK versionCode or the server versionCode.</string>
     <string name="apk_version_mismatch">The server says the update is build %1$d, but the downloaded APK is build %2$d. Correct the server data or upload the correct APK.</string>
+    <string name="action_ok">OK</string>
+    <string name="update_status_dialog_title">Update status</string>
+    <string name="release_authorize_install">Activate permission</string>
 </resources>

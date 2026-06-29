@@ -51,6 +51,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nexora.player.R
+import com.nexora.player.NEXORA_LIKED_PLAYLIST_ID
 import com.nexora.player.data.local.PlaylistEntity
 import com.nexora.player.data.local.PlaylistItemEntity
 import com.nexora.player.data.model.MediaEntry
@@ -74,7 +75,8 @@ fun PlaylistDetailScreen(
     onExportPlaylist: () -> Unit = {},
     onMoveItem: (Int, Int) -> Unit = { _, _ -> },
     onPlayShuffle: (List<PlaylistItemEntity>) -> Unit = {},
-    isAutoPlaylist: Boolean = false
+    isAutoPlaylist: Boolean = false,
+    canRemoveItems: Boolean = !isAutoPlaylist
 ) {
     val existingIds = playlistItems.map { it.mediaId }.toSet()
     val candidates = availableSongs.filterNot { existingIds.contains(it.id) }
@@ -106,11 +108,11 @@ fun PlaylistDetailScreen(
 
         ElevatedCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                PlaylistPreviewMosaic(items = playlistItems, modifier = Modifier.size(116.dp))
+                PlaylistPreviewMosaic(items = playlistItems, modifier = Modifier.size(104.dp))
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = playlist.name,
@@ -124,10 +126,10 @@ fun PlaylistDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = if (isAutoPlaylist) {
-                            stringResource(R.string.playlist_auto_desc)
-                        } else {
-                            stringResource(R.string.playlist_regular_desc)
+                        text = when {
+                            playlist.id == NEXORA_LIKED_PLAYLIST_ID -> stringResource(R.string.playlist_liked_desc)
+                            isAutoPlaylist -> stringResource(R.string.playlist_auto_desc)
+                            else -> stringResource(R.string.playlist_regular_desc)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -184,6 +186,7 @@ fun PlaylistDetailScreen(
                         index = index,
                         total = playlistItems.size,
                         isAutoPlaylist = isAutoPlaylist,
+                        canRemoveItems = canRemoveItems,
                         onPlay = { onPlayItem(playlistItems, item) },
                         onRemove = { onRemoveItem(item) },
                         onMoveUp = { onMoveItem(index, index - 1) },
@@ -277,6 +280,7 @@ private fun PlaylistTrackCompact(
     index: Int,
     total: Int,
     isAutoPlaylist: Boolean,
+    canRemoveItems: Boolean,
     onPlay: () -> Unit,
     onRemove: () -> Unit,
     onMoveUp: () -> Unit,
@@ -294,14 +298,16 @@ private fun PlaylistTrackCompact(
         )
         if (!isAutoPlaylist) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                FilledTonalIconButton(onClick = onMoveUp, enabled = index > 0, modifier = Modifier.size(36.dp)) {
+                FilledTonalIconButton(onClick = onMoveUp, enabled = index > 0, modifier = Modifier.size(34.dp)) {
                     Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.action_move_up))
                 }
-                FilledTonalIconButton(onClick = onMoveDown, enabled = index < total - 1, modifier = Modifier.size(36.dp)) {
+                FilledTonalIconButton(onClick = onMoveDown, enabled = index < total - 1, modifier = Modifier.size(34.dp)) {
                     Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.action_move_down))
                 }
             }
-            FilledTonalIconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
+        }
+        if (canRemoveItems) {
+            FilledTonalIconButton(onClick = onRemove, modifier = Modifier.size(38.dp)) {
                 Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_remove))
             }
         }
@@ -314,7 +320,7 @@ private fun PlaylistPreviewMosaic(
     modifier: Modifier = Modifier
 ) {
     val preview = items.take(4)
-    ElevatedCard(modifier = modifier.clip(RoundedCornerShape(24.dp))) {
+    ElevatedCard(modifier = modifier.clip(RoundedCornerShape(6.dp))) {
         Column(modifier = Modifier.fillMaxSize()) {
             repeat(2) { row ->
                 Row(modifier = Modifier.weight(1f)) {

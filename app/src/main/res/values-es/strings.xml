@@ -352,6 +352,8 @@ GitHub: github.com/Gh0stDeveloper
     <string name="update_required_title">Actualización requerida</string>
     <string name="update_available_title">Nueva versión disponible</string>
     <string name="update_notice_message">Nexora Player %1$s ya está disponible. %2$s</string>
+    <string name="playlist_liked_desc">Se guarda al tocar Me gusta</string>
+    <string name="playlist_liked_songs">Me gusta</string>
     <string name="playlist_most_played">Más escuchadas</string>
     <string name="apk_download_error">No se pudo descargar la actualización.</string>
     <string name="apk_server_error">El servidor respondió %1$d al descargar el APK. %2$s</string>
@@ -445,7 +447,7 @@ GitHub: github.com/Gh0stDeveloper
     <string name="release_recent_body">Correcciones, funciones nuevas y optimizaciones publicadas desde el servidor.</string>
     <string name="release_note_fallback">Mejora incluida en esta versión.</string>
     <string name="release_preparing">Preparando actualización…</string>
-    <string name="release_install_permission_hint">Después de autorizar instalaciones externas, vuelve a tocar Descargar.</string>
+    <string name="release_install_permission_hint">Nexora Player necesita permiso para instalar el APK descargado. Toca Activar permiso, habilita “Permitir de esta fuente” y vuelve a la app; la descarga comenzará automáticamente.</string>
     <string name="release_open_browser">Abrir descarga en navegador</string>
     <string name="release_required_no_later">La opción “Actualizar después” está deshabilitada porque el servidor marcó esta versión como obligatoria.</string>
     <string name="release_downloading">Descargando…</string>
@@ -609,6 +611,7 @@ Tercera línea</string>
     <string name="music_delete">Eliminar</string>
     <string name="action_refresh">Actualizar</string>
     <string name="video_options_content">Opciones</string>
+    <string name="video_title_hint">Nombre del video</string>
     <string name="video_edit_file">Editar archivo</string>
     <string name="video_delete_file">Borrar archivo</string>
     <string name="video_edit_chooser">Editar video</string>
@@ -653,4 +656,7 @@ Si quieres un reproductor completo, ligero y con estilo, prueba Nexora Player.
     <string name="apk_package_mismatch">Este APK pertenece a %2$s, pero esta app es %1$s.</string>
     <string name="apk_not_newer">El APK descargado no es más nuevo. Instalada: %1$s (build %2$d). Descargada: %3$s (build %4$d). Actualiza el versionCode del APK o el versionCode del servidor.</string>
     <string name="apk_version_mismatch">El servidor indica que la actualización es build %1$d, pero el APK descargado es build %2$d. Corrige los datos del servidor o sube el APK correcto.</string>
+    <string name="action_ok">Aceptar</string>
+    <string name="update_status_dialog_title">Estado de actualización</string>
+    <string name="release_authorize_install">Activar permiso</string>
 </resources>
