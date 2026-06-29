@@ -648,4 +648,9 @@ Si quieres un reproductor completo, ligero y con estilo, prueba Nexora Player.
     <string name="widget_playing_nexora">Reproduciendo en Nexora</string>
     <string name="widget_tap_open">Toca para abrir la app</string>
     <string name="eq_band">Banda</string>
+    <string name="update_already_latest">Ya tienes la versión más reciente: %1$s (build %2$d).</string>
+    <string name="apk_invalid_package">El archivo descargado no es un APK Android válido.</string>
+    <string name="apk_package_mismatch">Este APK pertenece a %2$s, pero esta app es %1$s.</string>
+    <string name="apk_not_newer">El APK descargado no es más nuevo. Instalada: %1$s (build %2$d). Descargada: %3$s (build %4$d). Actualiza el versionCode del APK o el versionCode del servidor.</string>
+    <string name="apk_version_mismatch">El servidor indica que la actualización es build %1$d, pero el APK descargado es build %2$d. Corrige los datos del servidor o sube el APK correcto.</string>
 </resources>

@@ -563,24 +563,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun checkForUpdates(showDialogOnAvailable: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(updateChecking = true, updateError = null)
-            val result = runCatching { updateClient.checkVersion(BuildConfig.VERSION_CODE) }
+            val result = runCatching {
+                updateClient.checkVersion(
+                    currentVersionCode = BuildConfig.VERSION_CODE,
+                    currentVersionName = BuildConfig.VERSION_NAME
+                )
+            }
             result.onSuccess { info ->
                 RemoteUpdateNotifier.notifyServerMessages(context, info.notifications)
                 storeRemoteNotices(info)
                 if (info.available) {
                     RemoteUpdateNotifier.notifyUpdateAvailable(context, info)
                 }
-                val shouldAutoShow = info.available && (
-                    info.required ||
-                    showDialogOnAvailable ||
-                    (_uiState.value.preferences.postponedUpdateVersionCode < info.latestVersion.versionCode && !_uiState.value.updateDialogDismissedInSession)
-                )
+
+                val shouldAutoShow = shouldShowUpdateDialog(info, showDialogOnAvailable)
+                val manualNoUpdateMessage = if (showDialogOnAvailable && !info.available) {
+                    getApplication<Application>().getString(
+                        R.string.update_already_latest,
+                        BuildConfig.VERSION_NAME,
+                        BuildConfig.VERSION_CODE
+                    )
+                } else {
+                    null
+                }
+
                 _uiState.value = _uiState.value.copy(
                     updateInfo = info,
                     updateChecking = false,
-                    updateError = null,
+                    updateError = manualNoUpdateMessage,
                     shareUrl = info.urls.share.ifBlank { updateClient.shareUrl() },
-                    updateDialogDismissedInSession = if (showDialogOnAvailable && shouldAutoShow) false else _uiState.value.updateDialogDismissedInSession
+                    updateDialogDismissedInSession = if (showDialogOnAvailable && shouldAutoShow) {
+                        false
+                    } else {
+                        _uiState.value.updateDialogDismissedInSession
+                    }
                 )
             }.onFailure { throwable ->
                 _uiState.value = _uiState.value.copy(
@@ -590,6 +606,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+    }
+
+    private fun shouldShowUpdateDialog(info: RemoteUpdateInfo, manualCheck: Boolean): Boolean {
+        if (!info.available) return false
+        if (info.required) return true
+        if (manualCheck) return true
+        val preferences = _uiState.value.preferences
+        return preferences.postponedUpdateVersionCode < info.latestVersion.versionCode &&
+            !_uiState.value.updateDialogDismissedInSession
     }
 
     fun dismissUpdateDialog(postpone: Boolean) {

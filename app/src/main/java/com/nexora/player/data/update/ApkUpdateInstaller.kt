@@ -42,6 +42,7 @@ class ApkUpdateInstaller(private val context: Context) {
         runCatching {
             download(downloadUrl, outFile, expectedSize)
             validate(outFile, expectedSize, expectedSha256)
+            validateDownloadedApk(outFile, info)
             _state.value = _state.value.copy(
                 downloading = false,
                 progressPercent = 100,
@@ -124,6 +125,53 @@ class ApkUpdateInstaller(private val context: Context) {
             if (digest != expectedSha256) {
                 throw IllegalStateException(context.getString(R.string.apk_sha_failed))
             }
+        }
+    }
+
+
+    @Suppress("DEPRECATION")
+    private fun validateDownloadedApk(file: File, info: RemoteUpdateInfo) {
+        val packageInfo = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+            ?: throw IllegalStateException(context.getString(R.string.apk_invalid_package))
+
+        if (packageInfo.packageName != BuildConfig.APPLICATION_ID) {
+            throw IllegalStateException(
+                context.getString(
+                    R.string.apk_package_mismatch,
+                    BuildConfig.APPLICATION_ID,
+                    packageInfo.packageName ?: "unknown"
+                )
+            )
+        }
+
+        val apkVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode
+        } else {
+            packageInfo.versionCode.toLong()
+        }
+        val installedVersionCode = BuildConfig.VERSION_CODE.toLong()
+
+        if (apkVersionCode <= installedVersionCode) {
+            throw IllegalStateException(
+                context.getString(
+                    R.string.apk_not_newer,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE,
+                    packageInfo.versionName ?: "unknown",
+                    apkVersionCode
+                )
+            )
+        }
+
+        val serverVersionCode = info.latestVersion.versionCode.toLong()
+        if (serverVersionCode > 0L && apkVersionCode != serverVersionCode) {
+            throw IllegalStateException(
+                context.getString(
+                    R.string.apk_version_mismatch,
+                    serverVersionCode,
+                    apkVersionCode
+                )
+            )
         }
     }
 
