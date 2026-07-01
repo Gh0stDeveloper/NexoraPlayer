@@ -49,20 +49,25 @@ class NexoraOnlineApiClient(private val context: Context) {
         if (!isExpectedCallback) return null
 
         val params = parseUriCallbackParams(uri)
-        val callbackError = callbackAuthErrorMessage(params)
-        if (!callbackError.isNullOrBlank()) throw OnlineApiException(callbackError)
+        val error = params["error_description"] ?: params["error"]
+        if (!error.isNullOrBlank()) throw OnlineApiException(error)
 
         val accessToken = params["access_token"].orEmpty()
         if (accessToken.isBlank()) throw OnlineApiException(context.getString(R.string.online_error_google_callback))
 
         val expiresIn = params["expires_in"]?.toLongOrNull()?.coerceAtLeast(60L) ?: 3600L
         val claims = decodeJwtPayload(accessToken)
+        val profile = extractProfile(claims = claims, fallbackProvider = "google")
         return OnlineUserSession(
             accessToken = accessToken,
             refreshToken = params["refresh_token"]?.takeIf { it.isNotBlank() },
             expiresAtEpochSeconds = System.currentTimeMillis() / 1000L + expiresIn,
-            email = claims?.optString("email")?.takeIf { it.isNotBlank() },
-            userId = claims?.optString("sub")?.takeIf { it.isNotBlank() }
+            email = profile.email,
+            userId = claims?.optString("sub")?.takeIf { it.isNotBlank() },
+            displayName = profile.displayName,
+            username = profile.username,
+            avatarUrl = profile.avatarUrl,
+            provider = profile.provider
         )
     }
 
@@ -88,12 +93,17 @@ class NexoraOnlineApiClient(private val context: Context) {
         val body = JSONObject()
             .put("email", email.trim())
             .put("password", password)
-            .put("data", JSONObject().put("username", username.trim()))
+            .put(
+                "data",
+                JSONObject()
+                    .put("username", username.trim())
+                    .put("full_name", username.trim())
+                    .put("name", username.trim())
+            )
             .toString()
             .toByteArray()
-        val redirect = URLEncoder.encode(googleRedirectUrl, "UTF-8")
         val json = requestJson(
-            url = "$supabaseUrl/auth/v1/signup?redirect_to=$redirect",
+            url = "$supabaseUrl/auth/v1/signup",
             method = "POST",
             body = body,
             extraHeaders = supabaseHeaders(json = true),
@@ -116,7 +126,14 @@ class NexoraOnlineApiClient(private val context: Context) {
             extraHeaders = supabaseHeaders(json = true),
             requiresAuthEnvelope = false
         )
-        json.toSession(fallbackEmail = session.email, fallbackUserId = session.userId)
+        json.toSession(
+            fallbackEmail = session.email,
+            fallbackUserId = session.userId,
+            fallbackDisplayName = session.displayName,
+            fallbackUsername = session.username,
+            fallbackAvatarUrl = session.avatarUrl,
+            fallbackProvider = session.provider
+        )
     }
 
     suspend fun validateSession(session: OnlineUserSession): OnlineUserSession = withContext(Dispatchers.IO) {
@@ -277,58 +294,17 @@ class NexoraOnlineApiClient(private val context: Context) {
             .orEmpty()
         val json = runCatching { JSONObject(response) }.getOrElse { JSONObject().put("message", response) }
         if (code !in 200..299) {
-            throw OnlineApiException(authErrorMessage(json, code))
+            val error = json.optJSONObject("error")
+            val message = error?.optString("message")?.takeIf { it.isNotBlank() }
+                ?: json.optString("message").takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.online_error_http, code)
+            throw OnlineApiException(message)
         }
         if (requiresAuthEnvelope && json.has("success") && !json.optBoolean("success", false)) {
             val message = json.optJSONObject("error")?.optString("message") ?: context.getString(R.string.online_error_server_generic)
             throw OnlineApiException(message)
         }
         return json
-    }
-
-
-    private fun authErrorMessage(json: JSONObject, httpCode: Int): String {
-        val error = json.optJSONObject("error")
-        val errorCode = error?.optString("code")?.takeIf { it.isNotBlank() }
-            ?: error?.optString("error_code")?.takeIf { it.isNotBlank() }
-            ?: json.optString("error_code").takeIf { it.isNotBlank() }
-            ?: json.optString("code").takeIf { it.isNotBlank() }
-        val message = error?.optString("message")?.takeIf { it.isNotBlank() }
-            ?: error?.optString("msg")?.takeIf { it.isNotBlank() }
-            ?: json.optString("msg").takeIf { it.isNotBlank() }
-            ?: json.optString("message").takeIf { it.isNotBlank() }
-            ?: json.optString("error_description").takeIf { it.isNotBlank() }
-            ?: json.optString("error").takeIf { it.isNotBlank() }
-        return friendlyAuthError(errorCode, message, httpCode)
-    }
-
-    private fun callbackAuthErrorMessage(params: Map<String, String>): String? {
-        val errorCode = params["error_code"] ?: params["code"]
-        val message = params["error_description"] ?: params["error"] ?: params["msg"]
-        if (errorCode.isNullOrBlank() && message.isNullOrBlank()) return null
-        return friendlyAuthError(errorCode, message, null)
-    }
-
-    private fun friendlyAuthError(errorCode: String?, message: String?, httpCode: Int?): String {
-        val normalizedCode = errorCode.orEmpty().trim().lowercase()
-        val normalizedMessage = message.orEmpty().trim()
-        val lowerMessage = normalizedMessage.lowercase()
-        return when {
-            normalizedCode == "signup_disabled" || lowerMessage.contains("signups not allowed") ->
-                "Supabase Auth tiene desactivada la creación de cuentas. Activa Signups en Supabase Authentication > Settings para permitir registro manual y Google Auth."
-            normalizedCode == "email_provider_disabled" ->
-                "El registro con correo y contraseña está desactivado en Supabase Auth. Activa Email provider para crear cuentas manualmente."
-            normalizedCode == "provider_disabled" || normalizedCode == "oauth_provider_not_supported" ->
-                "Google Auth está desactivado o mal configurado en Supabase. Activa el proveedor Google y revisa Client ID, Client Secret y Redirect URLs."
-            normalizedCode == "email_exists" || normalizedCode == "user_already_exists" ->
-                "Ese correo ya está registrado. Inicia sesión o usa recuperación de contraseña."
-            normalizedCode == "weak_password" ->
-                "La contraseña no cumple la seguridad mínima configurada en Supabase. Usa una contraseña más larga y segura."
-            normalizedCode == "validation_failed" && normalizedMessage.isNotBlank() -> normalizedMessage
-            normalizedMessage.isNotBlank() -> normalizedMessage
-            httpCode != null -> context.getString(R.string.online_error_http, httpCode)
-            else -> context.getString(R.string.online_error_server_generic)
-        }
     }
 
     private fun requestMultipartJson(
@@ -378,7 +354,11 @@ class NexoraOnlineApiClient(private val context: Context) {
             .orEmpty()
         val json = runCatching { JSONObject(response) }.getOrElse { JSONObject().put("message", response) }
         if (code !in 200..299) {
-            throw OnlineApiException(authErrorMessage(json, code))
+            val error = json.optJSONObject("error")
+            val message = error?.optString("message")?.takeIf { it.isNotBlank() }
+                ?: json.optString("message").takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.online_error_http, code)
+            throw OnlineApiException(message)
         }
         if (json.has("success") && !json.optBoolean("success", false)) {
             val message = json.optJSONObject("error")?.optString("message") ?: context.getString(R.string.online_error_server_generic)
@@ -441,15 +421,84 @@ class NexoraOnlineApiClient(private val context: Context) {
         )
     }
 
-    private fun JSONObject.toSession(fallbackEmail: String? = null, fallbackUserId: String? = null): OnlineUserSession {
+    private fun JSONObject.toSession(
+        fallbackEmail: String? = null,
+        fallbackUserId: String? = null,
+        fallbackDisplayName: String? = null,
+        fallbackUsername: String? = null,
+        fallbackAvatarUrl: String? = null,
+        fallbackProvider: String? = null
+    ): OnlineUserSession {
         val expiresIn = optLong("expires_in", 3600L).coerceAtLeast(60L)
         val user = optJSONObject("user")
+        val profile = extractProfile(user = user, fallbackEmail = fallbackEmail, fallbackProvider = fallbackProvider ?: "email")
         return OnlineUserSession(
             accessToken = optString("access_token"),
             refreshToken = optString("refresh_token").takeIf { it.isNotBlank() },
             expiresAtEpochSeconds = System.currentTimeMillis() / 1000L + expiresIn,
-            email = user?.optString("email")?.takeIf { it.isNotBlank() } ?: fallbackEmail,
-            userId = user?.optString("id")?.takeIf { it.isNotBlank() } ?: fallbackUserId
+            email = profile.email ?: fallbackEmail,
+            userId = user?.optString("id")?.takeIf { it.isNotBlank() } ?: fallbackUserId,
+            displayName = profile.displayName ?: fallbackDisplayName,
+            username = profile.username ?: fallbackUsername,
+            avatarUrl = profile.avatarUrl ?: fallbackAvatarUrl,
+            provider = profile.provider ?: fallbackProvider
+        )
+    }
+
+    private data class OnlineProfileData(
+        val email: String? = null,
+        val displayName: String? = null,
+        val username: String? = null,
+        val avatarUrl: String? = null,
+        val provider: String? = null
+    )
+
+    private fun extractProfile(
+        user: JSONObject? = null,
+        claims: JSONObject? = null,
+        fallbackEmail: String? = null,
+        fallbackProvider: String? = null
+    ): OnlineProfileData {
+        val metadata = user?.optJSONObject("user_metadata") ?: claims?.optJSONObject("user_metadata")
+        val appMetadata = user?.optJSONObject("app_metadata") ?: claims?.optJSONObject("app_metadata")
+        val firstIdentity = user?.optJSONArray("identities")?.optJSONObject(0)
+        val identityData = firstIdentity?.optJSONObject("identity_data")
+
+        fun JSONObject?.firstNonBlank(vararg keys: String): String? {
+            if (this == null) return null
+            return keys.firstNotNullOfOrNull { key -> optString(key).takeIf { it.isNotBlank() } }
+        }
+
+        val email = user.firstNonBlank("email")
+            ?: claims.firstNonBlank("email")
+            ?: metadata.firstNonBlank("email")
+            ?: identityData.firstNonBlank("email")
+            ?: fallbackEmail
+
+        val displayName = metadata.firstNonBlank("full_name", "name", "display_name")
+            ?: identityData.firstNonBlank("full_name", "name", "display_name")
+            ?: claims.firstNonBlank("full_name", "name")
+
+        val username = metadata.firstNonBlank("username", "user_name", "preferred_username")
+            ?: identityData.firstNonBlank("username", "user_name", "preferred_username")
+            ?: claims.firstNonBlank("username", "preferred_username")
+
+        val avatarUrl = metadata.firstNonBlank("avatar_url", "picture", "avatarUrl")
+            ?: identityData.firstNonBlank("avatar_url", "picture", "avatarUrl")
+            ?: claims.firstNonBlank("avatar_url", "picture")
+
+        val provider = appMetadata.firstNonBlank("provider")
+            ?: firstIdentity.firstNonBlank("provider")
+            ?: metadata.firstNonBlank("provider", "provider_id")
+            ?: claims.firstNonBlank("provider")
+            ?: fallbackProvider
+
+        return OnlineProfileData(
+            email = email,
+            displayName = displayName,
+            username = username,
+            avatarUrl = avatarUrl,
+            provider = provider
         )
     }
 

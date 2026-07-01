@@ -43,10 +43,20 @@ data class OnlineUserSession(
     val refreshToken: String?,
     val expiresAtEpochSeconds: Long,
     val email: String?,
-    val userId: String?
+    val userId: String?,
+    val displayName: String? = null,
+    val username: String? = null,
+    val avatarUrl: String? = null,
+    val provider: String? = null
 ) {
     val isExpired: Boolean
         get() = System.currentTimeMillis() / 1000L >= expiresAtEpochSeconds - 60L
+
+    val profileName: String
+        get() = displayName?.takeIf { it.isNotBlank() }
+            ?: username?.takeIf { it.isNotBlank() }
+            ?: email?.substringBefore('@')?.takeIf { it.isNotBlank() }
+            ?: "Nexora"
 }
 
 data class OnlineUploadProgress(

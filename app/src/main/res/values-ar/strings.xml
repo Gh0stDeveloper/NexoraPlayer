@@ -696,9 +696,9 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="media_badge_online">متصل</string>
     <string name="media_badge_audio">صوت</string>
     <string name="media_badge_video">فيديو</string>
-    <string name="online_error_confirm_email">Account created. If Supabase requires email confirmation, confirm your email and then sign in.</string>
+    <string name="online_error_confirm_email">Account created. Confirm your email if required, then sign in.</string>
     <string name="online_error_missing_refresh_token">The session has no refresh token. Sign in again.</string>
-    <string name="online_error_missing_supabase_config">Missing NEXORA_SUPABASE_URL and NEXORA_SUPABASE_ANON_KEY in BuildConfig for sign-in.</string>
+    <string name="online_error_missing_supabase_config">Sign-in is not available right now.</string>
     <string name="online_error_http">HTTP error %1$d</string>
     <string name="online_error_server_generic">Server error</string>
     <string name="online_error_read_local_file">Could not read local file: %1$s</string>

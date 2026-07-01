@@ -568,11 +568,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     online = _uiState.value.online.copy(
                         session = null,
                         restoringSession = false,
-                        authError = throwable.message ?: getApplication<Application>().getString(R.string.online_error_session_restore)
+                        authError = onlineAuthErrorMessage(throwable, R.string.online_error_session_restore)
                     )
                 )
             }
         }
+    }
+
+
+    private fun onlineAuthErrorMessage(throwable: Throwable, fallbackRes: Int): String {
+        val fallback = context.getString(fallbackRes)
+        val raw = throwable.message.orEmpty().trim()
+        if (raw.isBlank()) return fallback
+        val lower = raw.lowercase()
+        val looksTechnical = listOf(
+            "http",
+            "supabase",
+            "signup",
+            "signups",
+            "provider",
+            "redirect",
+            "token",
+            "jwt",
+            "buildconfig",
+            "nexora_",
+            "unauthorized",
+            "forbidden",
+            "instance"
+        ).any { lower.contains(it) }
+        return if (looksTechnical) fallback else raw
     }
 
     fun onlineLogin(email: String, password: String) {
@@ -593,7 +617,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = _uiState.value.copy(
                     online = _uiState.value.online.copy(
                         authLoading = false,
-                        authError = throwable.message ?: getApplication<Application>().getString(R.string.online_error_login)
+                        authError = onlineAuthErrorMessage(throwable, R.string.online_error_login)
                     )
                 )
             }
@@ -618,7 +642,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = _uiState.value.copy(
                     online = _uiState.value.online.copy(
                         authLoading = false,
-                        authError = throwable.message ?: getApplication<Application>().getString(R.string.online_error_register)
+                        authError = onlineAuthErrorMessage(throwable, R.string.online_error_register)
                     )
                 )
             }
@@ -630,7 +654,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .getOrElse { throwable ->
                 _uiState.value = _uiState.value.copy(
                     online = _uiState.value.online.copy(
-                        authError = throwable.message ?: getApplication<Application>().getString(R.string.online_error_google_login_unavailable)
+                        authError = onlineAuthErrorMessage(throwable, R.string.online_error_google_login_unavailable)
                     )
                 )
                 ""
@@ -661,7 +685,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = _uiState.value.copy(
                 online = _uiState.value.online.copy(
                     authLoading = false,
-                    authError = throwable.message ?: getApplication<Application>().getString(R.string.online_error_google_callback)
+                    authError = onlineAuthErrorMessage(throwable, R.string.online_error_google_callback)
                 )
             )
         }

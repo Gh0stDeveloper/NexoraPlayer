@@ -677,7 +677,7 @@ Si quieres un reproductor completo, ligero y con estilo, prueba Nexora Player.
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Restaurando sesión online…</string>
     <string name="online_auth_title">Nexora Online</string>
-    <string name="online_auth_subtitle">Inicia sesión para reproducir y subir música desde tu API de Nexora Player.</string>
+    <string name="online_auth_subtitle">Inicia sesión para reproducir y subir música.</string>
     <string name="online_login">Iniciar sesión</string>
     <string name="online_create_account">Crear cuenta</string>
     <string name="online_email">Correo electrónico</string>
@@ -692,7 +692,7 @@ Si quieres un reproductor completo, ligero y con estilo, prueba Nexora Player.
     <string name="online_tab_account">Mi cuenta</string>
     <string name="online_tab_upload">Subir</string>
     <string name="online_home_title">Biblioteca online</string>
-    <string name="online_home_subtitle">Canciones activas y aprobadas desde tu API de Nexora Player.</string>
+    <string name="online_home_subtitle">Canciones activas.</string>
     <string name="online_empty_home">El servidor no devolvió canciones online.</string>
     <string name="online_search_hint">Buscar título, artista, álbum o género</string>
     <string name="online_search_action">Buscar</string>
@@ -721,14 +721,21 @@ Si quieres un reproductor completo, ligero y con estilo, prueba Nexora Player.
     <string name="media_badge_online">Online</string>
     <string name="media_badge_audio">Audio</string>
     <string name="media_badge_video">Video</string>
-    <string name="online_error_confirm_email">Cuenta creada. Si Supabase exige confirmar correo, confirma tu email y luego inicia sesión.</string>
+    <string name="online_error_confirm_email">Cuenta creada. Si se requiere confirmación, confirma tu correo y luego inicia sesión.</string>
     <string name="online_error_missing_refresh_token">La sesión no tiene refresh token. Inicia sesión nuevamente.</string>
-    <string name="online_error_missing_supabase_config">Faltan NEXORA_SUPABASE_URL y NEXORA_SUPABASE_ANON_KEY en BuildConfig para iniciar sesión.</string>
+    <string name="online_error_missing_supabase_config">El inicio de sesión no está disponible en este momento.</string>
     <string name="online_error_http">Error HTTP %1$d</string>
     <string name="online_error_server_generic">Error del servidor</string>
     <string name="online_error_read_local_file">No se pudo leer el archivo local: %1$s</string>
     <string name="online_google_login_action">Continuar con Google</string>
     <string name="online_or_email_login">o usa correo y contraseña</string>
-    <string name="online_error_google_callback">No se pudo completar el inicio de sesión con Google. Revisa la URL de redirección en Supabase.</string>
-    <string name="online_error_google_login_unavailable">El inicio de sesión con Google no está disponible porque Supabase no está configurado.</string>
+    <string name="online_error_google_callback">No se pudo completar el inicio de sesión con Google.</string>
+    <string name="online_error_google_login_unavailable">El inicio de sesión con Google no está disponible en este momento.</string>
+    <string name="online_confirm_password">Confirmar contraseña</string>
+    <string name="online_show_password">Mostrar contraseña</string>
+    <string name="online_hide_password">Ocultar contraseña</string>
+    <string name="online_passwords_do_not_match">Las contraseñas no coinciden.</string>
+    <string name="online_password_minimum">Usa al menos 6 caracteres.</string>
+    <string name="online_provider_google">Cuenta de Google</string>
+    <string name="online_provider_email">Cuenta por correo</string>
 </resources>

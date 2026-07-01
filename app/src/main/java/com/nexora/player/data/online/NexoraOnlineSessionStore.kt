@@ -16,7 +16,11 @@ class NexoraOnlineSessionStore(context: Context) {
                 refreshToken = json.optString("refreshToken").takeIf { it.isNotBlank() },
                 expiresAtEpochSeconds = json.optLong("expiresAtEpochSeconds", 0L),
                 email = json.optString("email").takeIf { it.isNotBlank() },
-                userId = json.optString("userId").takeIf { it.isNotBlank() }
+                userId = json.optString("userId").takeIf { it.isNotBlank() },
+                displayName = json.optString("displayName").takeIf { it.isNotBlank() },
+                username = json.optString("username").takeIf { it.isNotBlank() },
+                avatarUrl = json.optString("avatarUrl").takeIf { it.isNotBlank() },
+                provider = json.optString("provider").takeIf { it.isNotBlank() }
             ).takeIf { it.accessToken.isNotBlank() }
         }.getOrNull()
     }
@@ -28,6 +32,10 @@ class NexoraOnlineSessionStore(context: Context) {
             .put("expiresAtEpochSeconds", session.expiresAtEpochSeconds)
             .put("email", session.email.orEmpty())
             .put("userId", session.userId.orEmpty())
+            .put("displayName", session.displayName.orEmpty())
+            .put("username", session.username.orEmpty())
+            .put("avatarUrl", session.avatarUrl.orEmpty())
+            .put("provider", session.provider.orEmpty())
         prefs.edit().putString(KEY_SESSION, json.toString()).apply()
     }
 

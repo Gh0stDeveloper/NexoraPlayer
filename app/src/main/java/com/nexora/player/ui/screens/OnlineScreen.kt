@@ -9,21 +9,29 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -37,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -52,10 +61,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -63,6 +77,8 @@ import com.nexora.player.R
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.online.OnlineSongDto
 import com.nexora.player.data.online.OnlineUiState
+import com.nexora.player.data.online.OnlineUploadProgress
+import com.nexora.player.data.online.OnlineUserSession
 import com.nexora.player.ui.components.formatDuration
 
 @Composable
@@ -168,79 +184,147 @@ private fun OnlineAuthContent(
 ) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    var confirmPassword by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
     var registerMode by rememberSaveable { mutableStateOf(false) }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
+
+    val cleanEmail = email.trim()
+    val cleanUsername = username.trim()
+    val passwordsMatch = password == confirmPassword
+    val emailLooksValid = cleanEmail.contains("@") && cleanEmail.substringAfter("@", "").contains(".")
+    val canLogin = emailLooksValid && password.isNotBlank()
+    val canRegister = cleanUsername.length >= 3 && emailLooksValid && password.length >= 6 && confirmPassword.isNotBlank() && passwordsMatch
+    val canSubmit = !loading && if (registerMode) canRegister else canLogin
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.surface
+                    )
+                )
+            )
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            OnlineHeaderCard(
-                title = stringResource(R.string.online_auth_title),
-                subtitle = stringResource(R.string.online_auth_subtitle),
-                icon = { Icon(Icons.Filled.AccountCircle, contentDescription = null, modifier = Modifier.size(34.dp)) }
-            )
+            OnlineAuthHero()
         }
         item {
-            ElevatedCard(shape = RoundedCornerShape(28.dp)) {
+            ElevatedCard(shape = RoundedCornerShape(30.dp)) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(13.dp)
                 ) {
                     Text(
                         text = if (registerMode) stringResource(R.string.online_create_account) else stringResource(R.string.online_login),
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    FilledTonalButton(
+                    Text(
+                        text = stringResource(R.string.online_auth_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedButton(
                         enabled = !loading,
                         onClick = onGoogleLogin,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(18.dp)
                     ) {
-                        Icon(Icons.Filled.AccountCircle, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text(stringResource(R.string.online_google_login_action))
+                        Icon(
+                            painter = painterResource(R.drawable.ic_google_logo),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.size(10.dp))
+                        Text(stringResource(R.string.online_google_login_action), fontWeight = FontWeight.SemiBold)
                     }
+
                     Text(
                         text = stringResource(R.string.online_or_email_login),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text(stringResource(R.string.online_email)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text(stringResource(R.string.online_password)) },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+
                     if (registerMode) {
                         OutlinedTextField(
                             value = username,
                             onValueChange = { username = it },
                             label = { Text(stringResource(R.string.online_username)) },
+                            leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text(stringResource(R.string.online_email)) },
+                        leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    PasswordField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = stringResource(R.string.online_password),
+                        visible = passwordVisible,
+                        onVisibleChange = { passwordVisible = !passwordVisible },
+                        imeAction = if (registerMode) ImeAction.Next else ImeAction.Done,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (registerMode) {
+                        PasswordField(
+                            value = confirmPassword,
+                            onValueChange = { confirmPassword = it },
+                            label = stringResource(R.string.online_confirm_password),
+                            visible = confirmPasswordVisible,
+                            onVisibleChange = { confirmPasswordVisible = !confirmPasswordVisible },
+                            imeAction = ImeAction.Done,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (password.isNotBlank() && password.length < 6) {
+                            Text(
+                                text = stringResource(R.string.online_password_minimum),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        if (confirmPassword.isNotBlank() && !passwordsMatch) {
+                            Text(
+                                text = stringResource(R.string.online_passwords_do_not_match),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+
                     if (!error.isNullOrBlank()) {
                         ErrorCard(message = error)
                     }
+
                     Button(
-                        enabled = !loading && email.isNotBlank() && password.length >= 6 && (!registerMode || username.length >= 3),
+                        enabled = canSubmit,
                         onClick = {
-                            if (registerMode) onRegister(email, password, username) else onLogin(email, password)
+                            if (registerMode) onRegister(cleanEmail, password, cleanUsername) else onLogin(cleanEmail, password)
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(18.dp)
                     ) {
                         if (loading) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -248,6 +332,7 @@ private fun OnlineAuthContent(
                             Text(if (registerMode) stringResource(R.string.online_register_action) else stringResource(R.string.online_login_action))
                         }
                     }
+
                     TextButton(onClick = { registerMode = !registerMode }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (registerMode) stringResource(R.string.online_have_account) else stringResource(R.string.online_need_account))
                     }
@@ -255,6 +340,64 @@ private fun OnlineAuthContent(
             }
         }
     }
+}
+
+@Composable
+private fun OnlineAuthHero() {
+    Card(
+        shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.CloudDone, contentDescription = null, modifier = Modifier.size(34.dp))
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(stringResource(R.string.online_auth_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.online_account_connected), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PasswordField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    visible: Boolean,
+    onVisibleChange: () -> Unit,
+    imeAction: ImeAction,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null) },
+        trailingIcon = {
+            IconButton(onClick = onVisibleChange) {
+                Icon(
+                    imageVector = if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = stringResource(if (visible) R.string.online_hide_password else R.string.online_show_password)
+                )
+            }
+        },
+        singleLine = true,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction),
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -346,21 +489,49 @@ private fun OnlineAccountContent(
     onLogout: () -> Unit,
     modifier: Modifier
 ) {
+    val session = state.session
     LazyColumn(
         modifier = modifier.padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            OnlineHeaderCard(
-                title = stringResource(R.string.online_account_title),
-                subtitle = state.session?.email ?: stringResource(R.string.online_account_connected),
-                icon = { Icon(Icons.Filled.AccountCircle, contentDescription = null, modifier = Modifier.size(34.dp)) }
-            )
-        }
-        item {
-            ElevatedCard(shape = RoundedCornerShape(24.dp)) {
-                Column(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(stringResource(R.string.online_account_session_persistent), style = MaterialTheme.typography.bodyMedium)
+            ElevatedCard(shape = RoundedCornerShape(28.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OnlineProfileAvatar(session = session, size = 74)
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                text = session?.profileName ?: stringResource(R.string.online_account_connected),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = session?.email ?: stringResource(R.string.online_account_connected),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            AssistChip(
+                                onClick = {},
+                                label = { Text(session.providerLabel()) }
+                            )
+                        }
+                    }
+                    HorizontalDivider(thickness = 0.4.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    Text(
+                        text = stringResource(R.string.online_account_session_persistent),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     FilledTonalButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Filled.Logout, contentDescription = null)
                         Spacer(Modifier.size(8.dp))
@@ -373,10 +544,43 @@ private fun OnlineAccountContent(
 }
 
 @Composable
+private fun OnlineProfileAvatar(session: OnlineUserSession?, size: Int) {
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        val avatarUrl = session?.avatarUrl.orEmpty()
+        if (avatarUrl.isNotBlank()) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = session?.profileName,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Icon(Icons.Filled.AccountCircle, contentDescription = null, modifier = Modifier.size((size * 0.7f).dp))
+        }
+    }
+}
+
+@Composable
+private fun OnlineUserSession?.providerLabel(): String {
+    val provider = this?.provider.orEmpty()
+    return if (provider.contains("google", ignoreCase = true)) {
+        stringResource(R.string.online_provider_google)
+    } else {
+        stringResource(R.string.online_provider_email)
+    }
+}
+
+@Composable
 private fun OnlineUploadContent(
     localAudio: List<MediaEntry>,
     selectedIds: Set<Long>,
-    progress: com.nexora.player.data.online.OnlineUploadProgress,
+    progress: OnlineUploadProgress,
     onToggleSelection: (MediaEntry) -> Unit,
     onClearSelection: () -> Unit,
     onUploadSelected: () -> Unit,
