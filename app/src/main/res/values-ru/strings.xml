@@ -1,4 +1,3 @@
-<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -48,7 +47,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for "%1$s"</string>
+    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -649,6 +648,7 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
+
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Restoring online session…</string>
     <string name="online_auth_title">Nexora Online</string>

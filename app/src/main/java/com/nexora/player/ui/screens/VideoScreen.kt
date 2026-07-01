@@ -1,9 +1,11 @@
 package com.nexora.player.ui.screens
 
 import android.app.Activity
+import android.content.ContentValues
 import android.content.Intent
 import android.os.Build
 import android.provider.MediaStore
+import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -33,7 +36,9 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +72,56 @@ fun VideoScreen(
 ) {
     val context = LocalContext.current
     var pendingDelete by remember { mutableStateOf<MediaEntry?>(null) }
+    var editTarget by remember { mutableStateOf<MediaEntry?>(null) }
+    var pendingVideoRename by remember { mutableStateOf<PendingVideoRename?>(null) }
+
+    fun applyVideoRename(item: MediaEntry, rawTitle: String): Boolean {
+        val safeTitle = sanitizeVideoTitle(rawTitle)
+        if (safeTitle.isBlank()) return false
+        val extension = MimeTypeMap.getSingleton()
+            .getExtensionFromMimeType(item.mimeType ?: "video/mp4")
+            ?: "mp4"
+        val displayName = "$safeTitle.$extension"
+        return runCatching {
+            val values = ContentValues().apply {
+                put(MediaStore.Video.Media.TITLE, safeTitle)
+                put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+                put(MediaStore.MediaColumns.DATE_MODIFIED, System.currentTimeMillis() / 1000L)
+            }
+            context.contentResolver.update(item.uri, values, null, null) > 0
+        }.getOrDefault(false)
+    }
+
+    val editLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val pending = pendingVideoRename
+        pendingVideoRename = null
+        if (result.resultCode == Activity.RESULT_OK && pending != null) {
+            val saved = applyVideoRename(pending.item, pending.title)
+            if (saved) {
+                onRefresh()
+            } else {
+                onEditVideo(pending.item)
+            }
+        }
+    }
+
+    fun requestVideoRename(item: MediaEntry, title: String) {
+        val safeTitle = sanitizeVideoTitle(title)
+        if (safeTitle.isBlank()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val request = MediaStore.createWriteRequest(context.contentResolver, listOf(item.uri))
+            pendingVideoRename = PendingVideoRename(item, safeTitle)
+            editLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+        } else {
+            val saved = applyVideoRename(item, safeTitle)
+            if (saved) {
+                onRefresh()
+            } else {
+                onEditVideo(item)
+            }
+        }
+    }
+
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         val target = pendingDelete
         pendingDelete = null
@@ -139,13 +194,65 @@ fun VideoScreen(
                     item = item,
                     onPlay = { onPlay(items, item) },
                     onShare = { shareVideo(item) },
-                    onEdit = { onEditVideo(item) },
+                    onEdit = { editTarget = item },
                     onHide = { onHideVideo(item) },
                     onDelete = { requestDelete(item) }
                 )
             }
         }
     }
+
+    editTarget?.let { target ->
+        VideoRenameDialog(
+            item = target,
+            onDismiss = { editTarget = null },
+            onSave = { title ->
+                requestVideoRename(target, title)
+                editTarget = null
+            }
+        )
+    }
+}
+
+private data class PendingVideoRename(
+    val item: MediaEntry,
+    val title: String
+)
+
+@Composable
+private fun VideoRenameDialog(
+    item: MediaEntry,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var title by remember(item.id) { mutableStateOf(item.title) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.video_edit_file)) },
+        text = {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                singleLine = true,
+                label = { Text(stringResource(R.string.video_title_hint)) }
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(title) },
+                enabled = sanitizeVideoTitle(title).isNotBlank()
+            ) {
+                Text(stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        }
+    )
+}
+
+private fun sanitizeVideoTitle(raw: String): String {
+    return raw.trim().replace(Regex("""[\\/:*?"<>|]+"""), "_")
 }
 
 @Composable

@@ -3,6 +3,7 @@ package com.nexora.player
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
@@ -14,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,6 +101,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        volumeControlStream = AudioManager.STREAM_MUSIC
         requestMediaPermissions()
         handleDeepLink(intent)
 
@@ -113,10 +116,12 @@ class MainActivity : AppCompatActivity() {
             var showStatsScreen by rememberSaveable { mutableStateOf(false) }
             var showThemeScreen by rememberSaveable { mutableStateOf(false) }
             var showLanguageScreen by rememberSaveable { mutableStateOf(false) }
+            var showSettingsScreen by rememberSaveable { mutableStateOf(false) }
             val greeting = rememberGreeting()
             val availableUpdate = state.updateInfo
             val shouldShowUpdateDialog = availableUpdate?.available == true && (
                 availableUpdate.required ||
+                    state.forceShowUpdateDialog ||
                     (!state.updateDialogDismissedInSession && state.preferences.postponedUpdateVersionCode < availableUpdate.latestVersion.versionCode)
             )
 
@@ -136,8 +141,6 @@ class MainActivity : AppCompatActivity() {
                         add(AppDestination.MUSIC)
                         add(AppDestination.VIDEOS)
                         add(AppDestination.PLAYLISTS)
-                        add(AppDestination.FAVORITES)
-                        add(AppDestination.SETTINGS)
                     }
                 }
 
@@ -159,7 +162,16 @@ class MainActivity : AppCompatActivity() {
                                 onQueryChange = { if (state.selectedDestination != AppDestination.ONLINE) viewModel.setSearch(it) },
                                 modifier = Modifier.fillMaxWidth(),
                                 sortMode = if (state.selectedDestination == AppDestination.MUSIC) state.audioSort else null,
-                                onSortSelected = viewModel::setAudioSort
+                                onSortSelected = viewModel::setAudioSort,
+                                hasUnreadNotifications = state.unreadRemoteNoticeCount > 0,
+                                onNotificationsClick = {
+                                    searchExpanded = false
+                                    showNotificationCenter = true
+                                },
+                                onSettingsClick = {
+                                    searchExpanded = false
+                                    showSettingsScreen = true
+                                }
                             )
                         }
                     },
@@ -175,7 +187,7 @@ class MainActivity : AppCompatActivity() {
                             )
                             IosBottomTabBar(
                                 destinations = destinations,
-                                selected = state.selectedDestination,
+                                selected = if (state.selectedDestination in destinations) state.selectedDestination else destinations.first(),
                                 onDestinationSelected = { destination ->
                                     searchExpanded = false
                                     selectedPlaylistId = null
@@ -196,6 +208,7 @@ class MainActivity : AppCompatActivity() {
                         showStatsScreen = showStatsScreen,
                         showThemeScreen = showThemeScreen,
                         showLanguageScreen = showLanguageScreen,
+                        showSettingsScreen = showSettingsScreen,
                         onOpenPlaylist = { selectedPlaylistId = it.id },
                         onClosePlaylist = { selectedPlaylistId = null },
                         onOpenFolderManager = { showFolderManager = true },
@@ -208,9 +221,10 @@ class MainActivity : AppCompatActivity() {
                         onCloseThemeScreen = { showThemeScreen = false },
                         onOpenLanguageScreen = { showLanguageScreen = true },
                         onCloseLanguageScreen = { showLanguageScreen = false },
+                        onCloseSettingsScreen = { showSettingsScreen = false },
                         onOpenOnlineGoogleLogin = {
                             val url = viewModel.onlineGoogleAuthUrl()
-                            if (url.isNotBlank()) openExternalUrl(url)
+                            openGoogleAuthUrl(url)
                         }
                     )
                 }
@@ -226,6 +240,7 @@ class MainActivity : AppCompatActivity() {
                         },
                         installState = state.updateInstallState,
                         onOpenInBrowser = { openExternalUrl(availableUpdate.urls.download) },
+                        onAuthorizeInstallPermission = viewModel::openInstallPermissionSettings,
                         onClearInstallMessage = viewModel::clearUpdateInstallMessage
                     )
                 }
@@ -255,6 +270,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.resumeUpdateAfterInstallPermission()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -277,6 +297,45 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                if (event?.repeatCount == 0) viewModel.adjustNexoraVolume(+1)
+                true
+            }
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                if (event?.repeatCount == 0) viewModel.adjustNexoraVolume(-1)
+                true
+            }
+            else -> super.onKeyDown(keyCode, event)
+        }
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN -> true
+            else -> super.onKeyUp(keyCode, event)
+        }
+    }
+
+    private fun openGoogleAuthUrl(url: String) {
+        val safeUrl = url.trim()
+        if (safeUrl.isBlank()) return
+        val uri = Uri.parse(safeUrl)
+        val customTabsIntent = CustomTabsIntent.Builder()
+            .setShowTitle(true)
+            .setUrlBarHidingEnabled(true)
+            .build()
+            .apply {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+                intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                intent.putExtra(Intent.EXTRA_REFERRER, Uri.parse("android-app://$packageName"))
+            }
+
+        runCatching { customTabsIntent.launchUrl(this, uri) }
+            .onFailure { openExternalUrl(safeUrl) }
     }
 
     private fun openExternalUrl(url: String) {
@@ -319,6 +378,7 @@ private fun AppContent(
     showStatsScreen: Boolean,
     showThemeScreen: Boolean,
     showLanguageScreen: Boolean,
+    showSettingsScreen: Boolean,
     onOpenPlaylist: (PlaylistEntity) -> Unit,
     onClosePlaylist: () -> Unit,
     onOpenFolderManager: () -> Unit,
@@ -331,6 +391,7 @@ private fun AppContent(
     onCloseThemeScreen: () -> Unit,
     onOpenLanguageScreen: () -> Unit,
     onCloseLanguageScreen: () -> Unit,
+    onCloseSettingsScreen: () -> Unit,
     onOpenOnlineGoogleLogin: () -> Unit
 ) {
     if (showFolderManager) {
@@ -398,6 +459,63 @@ private fun AppContent(
         return
     }
 
+    if (showSettingsScreen) {
+        BackHandler(onBack = onCloseSettingsScreen)
+        SettingsScreen(
+            modifier = modifier,
+            themeMode = state.preferences.themeMode,
+            dynamicColor = state.preferences.dynamicColor,
+            hiddenAudioCount = state.preferences.hiddenAudioIds.size,
+            hiddenMediaItems = state.hiddenMediaItems,
+            onlineMusicSearchEnabled = state.preferences.onlineMusicSearchEnabled,
+            lyricsTranslationEnabled = state.preferences.lyricsTranslationEnabled,
+            volumeBoostEnabled = state.preferences.volumeBoostEnabled,
+            libraryChangeNotificationsEnabled = state.preferences.libraryChangeNotificationsEnabled,
+            shuffleEnabled = state.preferences.shuffleEnabled,
+            repeatMode = state.preferences.repeatMode,
+            resumePlaybackEnabled = state.preferences.resumePlaybackEnabled,
+            crossfadeEnabled = state.preferences.crossfadeEnabled,
+            crossfadeDurationMs = state.preferences.crossfadeDurationMs,
+            sleepTimerEnabled = state.preferences.sleepTimerEnabled,
+            sleepTimerMinutes = state.preferences.sleepTimerMinutes,
+            sleepTimerStopAtEndOfTrack = state.preferences.sleepTimerStopAtEndOfTrack,
+            hiddenFolders = state.preferences.hiddenFolders.toList(),
+            shareUrl = state.shareUrl,
+            updateChecking = state.updateChecking,
+            updateError = state.updateError,
+            currentLanguage = rememberAppLanguage(),
+            onBack = onCloseSettingsScreen,
+            onThemeChange = viewModel::setThemeMode,
+            onDynamicColorChange = viewModel::setDynamicColor,
+            onOnlineMusicSearchChange = viewModel::setOnlineMusicSearchEnabled,
+            onLyricsTranslationChange = viewModel::setLyricsTranslationEnabled,
+            onVolumeBoostChange = viewModel::setVolumeBoostEnabled,
+            onLibraryChangeNotificationsChange = viewModel::setLibraryChangeNotificationsEnabled,
+            onShuffleChange = viewModel::setShuffleEnabled,
+            onRepeatModeChange = viewModel::setRepeatMode,
+            onResumePlaybackChange = viewModel::setResumePlaybackEnabled,
+            onCrossfadeChange = viewModel::setCrossfadeEnabled,
+            onCrossfadeDurationChange = viewModel::setCrossfadeDurationMs,
+            onStartSleepTimer = viewModel::startSleepTimer,
+            onStartSleepTimerAtEndOfTrack = viewModel::startSleepTimerAtEndOfTrack,
+            onCancelSleepTimer = viewModel::cancelSleepTimer,
+            onLanguageChange = ::applyLanguage,
+            onRestoreHiddenAudio = viewModel::restoreHiddenAudio,
+            onRestoreHiddenItem = viewModel::restoreHiddenMedia,
+            onAddHiddenFolder = viewModel::addHiddenFolder,
+            onRemoveHiddenFolder = viewModel::removeHiddenFolder,
+            onClearHiddenFolders = viewModel::clearHiddenFolders,
+            onOpenFolderManager = onOpenFolderManager,
+            onOpenNotificationCenter = onOpenNotificationCenter,
+            onOpenStats = onOpenStats,
+            onOpenThemeSelection = onOpenThemeScreen,
+            onOpenLanguageSelection = onOpenLanguageScreen,
+            onCheckUpdates = { viewModel.checkForUpdates(showDialogOnAvailable = true) },
+            onClearUpdateMessage = viewModel::clearUpdateStatusMessage
+        )
+        return
+    }
+
     if (state.search.isNotBlank() && state.selectedDestination != AppDestination.ONLINE) {
         BackHandler { viewModel.setSearch("") }
         SearchResultsScreen(
@@ -427,7 +545,13 @@ private fun AppContent(
                 availableSongs = viewModel.filteredAudio(),
                 onBack = onClosePlaylist,
                 onPlayItem = viewModel::playPlaylistQueue,
-                onRemoveItem = { viewModel.removeFromPlaylist(it.id) },
+                onRemoveItem = { item ->
+                    if (playlist.id == NEXORA_LIKED_PLAYLIST_ID) {
+                        viewModel.removeFavoritePlaylistItem(item)
+                    } else {
+                        viewModel.removeFromPlaylist(item.id)
+                    }
+                },
                 onAddSongs = { songs ->
                     viewModel.addToPlaylist(playlist, songs)
                 },
@@ -436,7 +560,8 @@ private fun AppContent(
                 onExportPlaylist = { viewModel.exportPlaylist(playlist, playlistItems) },
                 onMoveItem = { from, to -> viewModel.movePlaylistItem(playlistItems, from, to) },
                 onPlayShuffle = { items -> viewModel.playQueue(items.map { it.toMediaEntryMain() }.shuffled(), 0) },
-                isAutoPlaylist = playlist.id < 0
+                isAutoPlaylist = playlist.id < 0,
+                canRemoveItems = playlist.id == NEXORA_LIKED_PLAYLIST_ID
             )
             return
         } else {
@@ -453,7 +578,8 @@ private fun AppContent(
         onOpenNotificationCenter = onOpenNotificationCenter,
         onOpenStats = onOpenStats,
         onOpenThemeScreen = onOpenThemeScreen,
-        onOpenLanguageScreen = onOpenLanguageScreen
+        onOpenLanguageScreen = onOpenLanguageScreen,
+        onOpenOnlineGoogleLogin = onOpenOnlineGoogleLogin
     )
 }
 
@@ -468,7 +594,8 @@ private fun DestinationPagerContent(
     onOpenNotificationCenter: () -> Unit,
     onOpenStats: () -> Unit,
     onOpenThemeScreen: () -> Unit,
-    onOpenLanguageScreen: () -> Unit
+    onOpenLanguageScreen: () -> Unit,
+    onOpenOnlineGoogleLogin: () -> Unit
 ) {
     val destinations = remember(state.preferences.onlineMusicSearchEnabled) {
         buildList {
@@ -476,8 +603,6 @@ private fun DestinationPagerContent(
             add(AppDestination.MUSIC)
             add(AppDestination.VIDEOS)
             add(AppDestination.PLAYLISTS)
-            add(AppDestination.FAVORITES)
-            add(AppDestination.SETTINGS)
         }
     }
 
@@ -556,7 +681,7 @@ private fun DestinationPagerContent(
                 onCreatePlaylist = viewModel::createPlaylist,
                 onDeletePlaylist = viewModel::deletePlaylist,
                 onOpenPlaylist = onOpenPlaylist,
-                playlistPreviewItems = { playlistId -> viewModel.playlistItems(playlistId) }
+                playlistPreviewItems = { playlistId -> viewModel.playlistPreviewItems(playlistId) }
             )
 
             AppDestination.FAVORITES -> FavoritesScreen(
@@ -571,6 +696,7 @@ private fun DestinationPagerContent(
                 themeMode = state.preferences.themeMode,
                 dynamicColor = state.preferences.dynamicColor,
                 hiddenAudioCount = state.preferences.hiddenAudioIds.size,
+                hiddenMediaItems = state.hiddenMediaItems,
                 onlineMusicSearchEnabled = state.preferences.onlineMusicSearchEnabled,
                 lyricsTranslationEnabled = state.preferences.lyricsTranslationEnabled,
                 volumeBoostEnabled = state.preferences.volumeBoostEnabled,
@@ -604,6 +730,7 @@ private fun DestinationPagerContent(
                 onCancelSleepTimer = viewModel::cancelSleepTimer,
                 onLanguageChange = ::applyLanguage,
                 onRestoreHiddenAudio = viewModel::restoreHiddenAudio,
+                onRestoreHiddenItem = viewModel::restoreHiddenMedia,
                 onAddHiddenFolder = viewModel::addHiddenFolder,
                 onRemoveHiddenFolder = viewModel::removeHiddenFolder,
                 onClearHiddenFolders = viewModel::clearHiddenFolders,
@@ -612,7 +739,8 @@ private fun DestinationPagerContent(
                 onOpenStats = onOpenStats,
                 onOpenThemeSelection = onOpenThemeScreen,
                 onOpenLanguageSelection = onOpenLanguageScreen,
-                onCheckUpdates = { viewModel.checkForUpdates(showDialogOnAvailable = true) }
+                onCheckUpdates = { viewModel.checkForUpdates(showDialogOnAvailable = true) },
+                onClearUpdateMessage = viewModel::clearUpdateStatusMessage
             )
 
             AppDestination.QUEUE, AppDestination.HISTORY -> MusicScreen(

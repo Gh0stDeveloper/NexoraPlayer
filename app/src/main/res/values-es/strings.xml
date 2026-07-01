@@ -1,4 +1,3 @@
-<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Interfaz compacta, biblioteca local y reproducción inmersiva.</string>
@@ -48,7 +47,7 @@
     <string name="queue_go_to">Ir a</string>
     <string name="queue_remove">Quitar</string>
     <string name="results_title">Resultados de búsqueda</string>
-    <string name="results_empty">No hay coincidencias para "%1$s"</string>
+    <string name="results_empty">No hay coincidencias para &quot;%1$s&quot;</string>
     <string name="results_count">%1$d coincidencias encontradas</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -219,8 +218,8 @@
     <string name="settings_library_notifications">Avisar cuando haya nuevos archivos</string>
     <string name="settings_library_notifications_desc">Muestra una notificación cuando cambie la música o los videos disponibles.</string>
     <string name="settings_online_search">Búsqueda en línea</string>
-    <string name="settings_online_enabled">Activado. Agrega la sección Online y conecta solo con tu API de Nexora Player.</string>
-    <string name="settings_online_disabled">Desactivado. Solo biblioteca local. No se llaman endpoints online.</string>
+    <string name="settings_online_enabled">Online activado. Se usarán datos de internet.</string>
+    <string name="settings_online_disabled">Desactivado. Solo datos locales.</string>
     <string name="settings_no_hidden_songs">No hay canciones ocultas</string>
     <string name="settings_hidden_songs_count">%1$d canciones ocultas</string>
     <string name="settings_share_title">Compártenos</string>
@@ -243,6 +242,19 @@
     <string name="hidden_folder_path">Ruta de carpeta</string>
     <string name="hidden_folder_hide">Ocultar</string>
     <string name="hidden_folder_remove">Quitar</string>
+    <string name="settings_no_hidden_files">No hay archivos ocultos</string>
+    <string name="settings_hidden_files_count">%1$d archivos ocultos</string>
+    <string name="hidden_media_title">Archivos ocultos</string>
+    <string name="hidden_media_restore_all">Restaurar todos</string>
+    <string name="hidden_media_restore_selected">Restaurar seleccionados</string>
+    <string name="hidden_media_restore_hint">Selecciona los audios o videos que quieres volver a mostrar en la biblioteca.</string>
+    <string name="hidden_media_empty_desc">Los archivos ocultos aparecerán aquí cuando todavía existan en el dispositivo.</string>
+    <string name="hidden_media_audio_section">Audios ocultos</string>
+    <string name="hidden_media_video_section">Videos ocultos</string>
+    <string name="hidden_media_unknown_audio">Audio desconocido</string>
+    <string name="hidden_media_unknown_video">Video desconocido</string>
+    <string name="hidden_media_show">Mostrar</string>
+    <string name="hidden_media_selected_count">%1$d seleccionados</string>
     <string name="hidden_audio_title">Canciones ocultas</string>
     <string name="hidden_audio_restore_all">Restaurar todas</string>
     <string name="hidden_audio_restore_hint">Toca una canción para volver a mostrarla en tu biblioteca.</string>
@@ -353,6 +365,8 @@ GitHub: github.com/Gh0stDeveloper
     <string name="update_required_title">Actualización requerida</string>
     <string name="update_available_title">Nueva versión disponible</string>
     <string name="update_notice_message">Nexora Player %1$s ya está disponible. %2$s</string>
+    <string name="playlist_liked_desc">Se guarda al tocar Me gusta</string>
+    <string name="playlist_liked_songs">Me gusta</string>
     <string name="playlist_most_played">Más escuchadas</string>
     <string name="apk_download_error">No se pudo descargar la actualización.</string>
     <string name="apk_server_error">El servidor respondió %1$d al descargar el APK. %2$s</string>
@@ -446,7 +460,7 @@ GitHub: github.com/Gh0stDeveloper
     <string name="release_recent_body">Correcciones, funciones nuevas y optimizaciones publicadas desde el servidor.</string>
     <string name="release_note_fallback">Mejora incluida en esta versión.</string>
     <string name="release_preparing">Preparando actualización…</string>
-    <string name="release_install_permission_hint">Después de autorizar instalaciones externas, vuelve a tocar Descargar.</string>
+    <string name="release_install_permission_hint">Nexora Player necesita permiso para instalar el APK descargado. Toca Activar permiso, habilita “Permitir de esta fuente” y vuelve a la app; la descarga comenzará automáticamente.</string>
     <string name="release_open_browser">Abrir descarga en navegador</string>
     <string name="release_required_no_later">La opción “Actualizar después” está deshabilitada porque el servidor marcó esta versión como obligatoria.</string>
     <string name="release_downloading">Descargando…</string>
@@ -549,6 +563,7 @@ Tercera línea</string>
     <string name="video_rename_file">Renombrar archivo</string>
     <string name="video_external_subtitles">Subtítulos .srt externos</string>
     <string name="video_aspect_ratio">Relación: %1$s</string>
+    <string name="video_now_playing_badge">Reproduciendo</string>
     <string name="video_up_next">A continuación</string>
     <string name="video_hide">Ocultar video</string>
     <string name="widget_no_lyrics">Letra original no guardada</string>
@@ -610,6 +625,7 @@ Tercera línea</string>
     <string name="music_delete">Eliminar</string>
     <string name="action_refresh">Actualizar</string>
     <string name="video_options_content">Opciones</string>
+    <string name="video_title_hint">Nombre del video</string>
     <string name="video_edit_file">Editar archivo</string>
     <string name="video_delete_file">Borrar archivo</string>
     <string name="video_edit_chooser">Editar video</string>
@@ -649,6 +665,15 @@ Si quieres un reproductor completo, ligero y con estilo, prueba Nexora Player.
     <string name="widget_playing_nexora">Reproduciendo en Nexora</string>
     <string name="widget_tap_open">Toca para abrir la app</string>
     <string name="eq_band">Banda</string>
+    <string name="update_already_latest">Ya tienes la versión más reciente: %1$s (build %2$d).</string>
+    <string name="apk_invalid_package">El archivo descargado no es un APK Android válido.</string>
+    <string name="apk_package_mismatch">Este APK pertenece a %2$s, pero esta app es %1$s.</string>
+    <string name="apk_not_newer">El APK descargado no es más nuevo. Instalada: %1$s (build %2$d). Descargada: %3$s (build %4$d). Actualiza el versionCode del APK o el versionCode del servidor.</string>
+    <string name="apk_version_mismatch">El servidor indica que la actualización es build %1$d, pero el APK descargado es build %2$d. Corrige los datos del servidor o sube el APK correcto.</string>
+    <string name="action_ok">Aceptar</string>
+    <string name="update_status_dialog_title">Estado de actualización</string>
+    <string name="release_authorize_install">Activar permiso</string>
+
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Restaurando sesión online…</string>
     <string name="online_auth_title">Nexora Online</string>

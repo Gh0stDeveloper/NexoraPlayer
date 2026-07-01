@@ -19,9 +19,9 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -35,19 +35,21 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nexora.player.R
+import coil.compose.AsyncImage
 import com.nexora.player.data.model.MediaEntry
 import com.nexora.player.data.model.MediaKind
 import com.nexora.player.data.model.MediaSource
-import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
 fun MediaArtwork(
     item: MediaEntry,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = 24.dp
 ) {
     val context = LocalContext.current
     val artwork = produceState<ImageBitmap?>(initialValue = null, item.id, item.uri.toString(), item.artworkUrl) {
@@ -74,9 +76,11 @@ fun MediaArtwork(
         )
     }
 
+    val artworkShape = RoundedCornerShape(cornerRadius)
+
     Card(
-        modifier = modifier.clip(RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
+        modifier = modifier.clip(artworkShape),
+        shape = artworkShape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Box(

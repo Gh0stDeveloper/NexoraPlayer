@@ -52,6 +52,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 
 data class AppUiState(
@@ -69,11 +70,13 @@ data class AppUiState(
     val playlists: List<PlaylistEntity> = emptyList(),
     val history: List<PlaybackHistoryEntity> = emptyList(),
     val folderSummaries: List<FolderSummary> = emptyList(),
+    val hiddenMediaItems: List<MediaEntry> = emptyList(),
     val preferences: AppPreferences = AppPreferences(),
     val updateInfo: RemoteUpdateInfo? = null,
     val updateChecking: Boolean = false,
     val updateError: String? = null,
     val updateDialogDismissedInSession: Boolean = false,
+    val forceShowUpdateDialog: Boolean = false,
     val updateInstallState: UpdateInstallState = UpdateInstallState(),
     val shareUrl: String = BuildConfig.NEXORA_SERVER_URL,
     val remoteNotices: List<RemoteNoticeEntity> = emptyList(),
@@ -82,9 +85,13 @@ data class AppUiState(
     val nexoraVolumeBoosted: Boolean = false,
     val nexoraVolumeOverlayVisible: Boolean = false,
     val online: OnlineUiState = OnlineUiState()
-)
+) {
+    val unreadRemoteNoticeCount: Int
+        get() = remoteNotices.count { it.readAt <= 0L }
+}
 
-private const val AUTO_PLAYLIST_ID = Long.MIN_VALUE + 42L
+const val NEXORA_LIKED_PLAYLIST_ID = Long.MIN_VALUE + 41L
+const val NEXORA_MOST_PLAYED_PLAYLIST_ID = Long.MIN_VALUE + 42L
 
 private data class PersistedPlaybackItem(
     val id: Long,
@@ -188,11 +195,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
 
+    private var onlineSearchJob: Job? = null
     private var libraryRefreshJob: Job? = null
     private var resumeRestored = false
     private var lastRecordedPlaybackKey: String? = null
     private var volumeOverlayJob: Job? = null
-    private var onlineSearchJob: Job? = null
+    private var pendingUpdateAfterInstallPermission: RemoteUpdateInfo? = null
 
     init {
         observePlayback()
@@ -245,15 +253,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     selectedDestination = safeDestination,
                     preferences = prefs
                 )
-                if (!prefs.onlineMusicSearchEnabled && prefs.lastDestination == AppDestination.ONLINE) {
-                    viewModelScope.launch { preferencesRepository.setLastDestination(AppDestination.MUSIC) }
-                }
                 PlayerEngine.setShuffleEnabled(prefs.shuffleEnabled)
                 PlayerEngine.setRepeatMode(prefs.repeatMode)
                 PlayerEngine.setPlaybackSpeed(prefs.playbackSpeed)
                 PlayerEngine.setPlaybackVolume(prefs.playbackVolume)
                 PlayerEngine.setCrossfadeEnabled(prefs.crossfadeEnabled, prefs.crossfadeDurationMs)
                 refreshLibrary()
+                if (!prefs.onlineMusicSearchEnabled && prefs.lastDestination == AppDestination.ONLINE) {
+                    viewModelScope.launch { preferencesRepository.setLastDestination(AppDestination.MUSIC) }
+                }
                 tryRestorePlaybackSession(prefs)
                 if (prefs.sleepTimerEnabled && !prefs.sleepTimerStopAtEndOfTrack && prefs.sleepTimerEndAtMs > 0L && System.currentTimeMillis() >= prefs.sleepTimerEndAtMs) {
                     PlayerEngine.clear(context)
@@ -279,7 +287,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }.collect { bundle ->
                 _uiState.value = _uiState.value.copy(
                     favorites = bundle.favorites,
-                    playlists = mergeWithAutoPlaylist(bundle.stats, bundle.playlists),
+                    playlists = mergeWithAutoPlaylist(bundle.favorites, bundle.stats, bundle.playlists),
                     history = bundle.history,
                     playbackStats = bundle.stats,
                     remoteNotices = bundle.notices
@@ -293,11 +301,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val hiddenIds = _uiState.value.preferences.hiddenAudioIds
             val hiddenFolders = _uiState.value.preferences.hiddenFolders
             val allAudio = mediaRepository.loadAudio(_uiState.value.audioSort)
+            val allVideos = mediaRepository.loadVideos(_uiState.value.videoSort)
             val folderSummaries = presentation.library.folderSummaries(allAudio)
             val audio = presentation.library.visibleAudio(allAudio, hiddenIds, hiddenFolders)
-            val videos = mediaRepository.loadVideos(_uiState.value.videoSort)
-                .filterNot { it.id in hiddenIds }
-            _uiState.value = _uiState.value.copy(audio = audio, videos = videos, folderSummaries = folderSummaries)
+            val videos = allVideos.filterNot { it.id in hiddenIds }
+            val hiddenMediaItems = (allAudio + allVideos)
+                .filter { it.id in hiddenIds }
+                .sortedWith(compareBy<MediaEntry> { it.kind.ordinal }.thenBy { it.title.lowercase() })
+            _uiState.value = _uiState.value.copy(
+                audio = audio,
+                videos = videos,
+                folderSummaries = folderSummaries,
+                hiddenMediaItems = hiddenMediaItems
+            )
 
             if (_uiState.value.preferences.libraryChangeNotificationsEnabled) {
                 MediaLibraryNotifier.maybeNotify(context, audio, videos)
@@ -627,6 +643,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (session == null) return
             onlineSessionStore.save(session)
             _uiState.value = _uiState.value.copy(
+                selectedDestination = AppDestination.ONLINE,
+                preferences = _uiState.value.preferences.copy(onlineMusicSearchEnabled = true),
                 online = _uiState.value.online.copy(
                     session = session,
                     restoringSession = false,
@@ -634,7 +652,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     authError = null
                 )
             )
-            if (_uiState.value.preferences.onlineMusicSearchEnabled) loadOnlineSongs()
+            viewModelScope.launch {
+                preferencesRepository.setOnlineMusicSearchEnabled(true)
+                preferencesRepository.setLastDestination(AppDestination.ONLINE)
+            }
+            loadOnlineSongs()
         }.onFailure { throwable ->
             _uiState.value = _uiState.value.copy(
                 online = _uiState.value.online.copy(
@@ -808,38 +830,68 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun checkForUpdates(showDialogOnAvailable: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(updateChecking = true, updateError = null)
-            val result = runCatching { updateClient.checkVersion(BuildConfig.VERSION_CODE) }
+            val result = runCatching {
+                updateClient.checkVersion(
+                    currentVersionCode = BuildConfig.VERSION_CODE,
+                    currentVersionName = BuildConfig.VERSION_NAME
+                )
+            }
             result.onSuccess { info ->
                 RemoteUpdateNotifier.notifyServerMessages(context, info.notifications)
                 storeRemoteNotices(info)
                 if (info.available) {
                     RemoteUpdateNotifier.notifyUpdateAvailable(context, info)
                 }
-                val shouldAutoShow = info.available && (
-                    info.required ||
-                    showDialogOnAvailable ||
-                    (_uiState.value.preferences.postponedUpdateVersionCode < info.latestVersion.versionCode && !_uiState.value.updateDialogDismissedInSession)
-                )
+
+                val shouldAutoShow = shouldShowUpdateDialog(info, showDialogOnAvailable)
+                val manualNoUpdateMessage = if (showDialogOnAvailable && !info.available) {
+                    getApplication<Application>().getString(
+                        R.string.update_already_latest,
+                        BuildConfig.VERSION_NAME,
+                        BuildConfig.VERSION_CODE
+                    )
+                } else {
+                    null
+                }
+
                 _uiState.value = _uiState.value.copy(
                     updateInfo = info,
                     updateChecking = false,
-                    updateError = null,
+                    updateError = manualNoUpdateMessage,
                     shareUrl = info.urls.share.ifBlank { updateClient.shareUrl() },
-                    updateDialogDismissedInSession = if (showDialogOnAvailable && shouldAutoShow) false else _uiState.value.updateDialogDismissedInSession
+                    forceShowUpdateDialog = showDialogOnAvailable && info.available,
+                    updateDialogDismissedInSession = if (showDialogOnAvailable && shouldAutoShow) {
+                        false
+                    } else {
+                        _uiState.value.updateDialogDismissedInSession
+                    }
                 )
             }.onFailure { throwable ->
                 _uiState.value = _uiState.value.copy(
                     updateChecking = false,
                     updateError = throwable.message ?: getApplication<Application>().getString(R.string.update_error_server_query),
+                    forceShowUpdateDialog = false,
                     shareUrl = updateClient.shareUrl()
                 )
             }
         }
     }
 
+    private fun shouldShowUpdateDialog(info: RemoteUpdateInfo, manualCheck: Boolean): Boolean {
+        if (!info.available) return false
+        if (info.required) return true
+        if (manualCheck) return true
+        val preferences = _uiState.value.preferences
+        return preferences.postponedUpdateVersionCode < info.latestVersion.versionCode &&
+            !_uiState.value.updateDialogDismissedInSession
+    }
+
     fun dismissUpdateDialog(postpone: Boolean) {
         val info = _uiState.value.updateInfo ?: return
-        _uiState.value = _uiState.value.copy(updateDialogDismissedInSession = true)
+        _uiState.value = _uiState.value.copy(
+            updateDialogDismissedInSession = true,
+            forceShowUpdateDialog = false
+        )
         if (postpone && !info.required) {
             viewModelScope.launch { preferencesRepository.setPostponedUpdateVersionCode(info.latestVersion.versionCode) }
         }
@@ -847,9 +899,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
 
     fun downloadAndInstallUpdate(info: RemoteUpdateInfo) {
+        if (!updateInstaller.canRequestPackageInstalls()) {
+            pendingUpdateAfterInstallPermission = info
+            updateInstaller.showInstallPermissionRequired()
+            return
+        }
+
+        pendingUpdateAfterInstallPermission = null
         viewModelScope.launch {
             updateInstaller.downloadAndOpenInstaller(info)
         }
+    }
+
+    fun openInstallPermissionSettings() {
+        updateInstaller.openInstallPermissionSettings()
+    }
+
+    fun resumeUpdateAfterInstallPermission() {
+        val pending = pendingUpdateAfterInstallPermission ?: return
+        if (updateInstaller.canRequestPackageInstalls()) {
+            downloadAndInstallUpdate(pending)
+        }
+    }
+
+    fun clearUpdateStatusMessage() {
+        _uiState.value = _uiState.value.copy(updateError = null)
     }
 
     fun clearUpdateInstallMessage() {
@@ -901,24 +975,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playQueue(items: List<MediaEntry>, startIndex: Int = 0) {
-        if (items.getOrNull(startIndex)?.source != MediaSource.ONLINE) {
-            PlayerEngine.clearHttpRequestHeaders()
-        }
+        if (items.none { it.source == MediaSource.ONLINE }) PlayerEngine.clearHttpRequestHeaders()
         PlayerEngine.setShuffleEnabled(_uiState.value.preferences.shuffleEnabled)
         PlayerEngine.setRepeatMode(_uiState.value.preferences.repeatMode)
         PlayerEngine.setPlaybackSpeed(_uiState.value.preferences.playbackSpeed)
         PlayerEngine.setPlaybackVolume(_uiState.value.preferences.playbackVolume)
         PlayerEngine.setCrossfadeEnabled(_uiState.value.preferences.crossfadeEnabled, _uiState.value.preferences.crossfadeDurationMs)
         PlayerEngine.playQueue(context, items, startIndex)
-        if (items.getOrNull(startIndex)?.source != MediaSource.ONLINE) {
+        if (items.none { it.source == MediaSource.ONLINE }) {
             persistPlaybackSessionFromCurrentPlayer()
         }
     }
 
     fun play(item: MediaEntry) {
-        if (item.source != MediaSource.ONLINE) {
-            PlayerEngine.clearHttpRequestHeaders()
-        }
+        if (item.source != MediaSource.ONLINE) PlayerEngine.clearHttpRequestHeaders()
         PlayerEngine.setShuffleEnabled(_uiState.value.preferences.shuffleEnabled)
         PlayerEngine.setRepeatMode(_uiState.value.preferences.repeatMode)
         PlayerEngine.setPlaybackSpeed(_uiState.value.preferences.playbackSpeed)
@@ -973,6 +1043,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun restoreHiddenAudio() {
         viewModelScope.launch {
             preferencesRepository.clearHiddenAudioIds()
+            refreshLibrary()
+        }
+    }
+
+    fun restoreHiddenMedia(id: Long) {
+        viewModelScope.launch {
+            preferencesRepository.removeHiddenAudioId(id)
+            refreshLibrary()
+        }
+    }
+
+    fun restoreHiddenMedia(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            ids.forEach { id -> preferencesRepository.removeHiddenAudioId(id) }
             refreshLibrary()
         }
     }
@@ -1035,7 +1120,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deletePlaylist(playlist: PlaylistEntity) {
-        if (playlist.id == AUTO_PLAYLIST_ID) return
+        if (playlist.id < 0) return
         viewModelScope.launch {
             database.playlistsDao().deleteItemsForPlaylist(playlist.id)
             database.playlistsDao().deletePlaylist(playlist.id)
@@ -1047,7 +1132,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addToPlaylist(playlist: PlaylistEntity, entries: List<MediaEntry>) {
-        if (playlist.id == AUTO_PLAYLIST_ID || entries.isEmpty()) return
+        if (playlist.id < 0 || entries.isEmpty()) return
         viewModelScope.launch {
             var next = database.playlistsDao().nextOrderIndex(playlist.id)
             entries.distinctBy { it.id to it.kind }.forEach { entry ->
@@ -1070,30 +1155,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playlistItems(playlistId: Long): Flow<List<PlaylistItemEntity>> {
-        return if (playlistId == AUTO_PLAYLIST_ID) {
-            database.playbackStatsDao().observeTop(200).map { stats -> buildMostPlayedPlaylist(stats) }
-        } else {
-            database.playlistsDao().observeItems(playlistId)
+        return when (playlistId) {
+            NEXORA_MOST_PLAYED_PLAYLIST_ID -> {
+                database.playbackStatsDao().observeTop(200).map { stats -> buildMostPlayedPlaylist(stats) }
+            }
+            NEXORA_LIKED_PLAYLIST_ID -> {
+                database.favoritesDao().observeAll().map { favorites -> buildLikedPlaylist(favorites) }
+            }
+            else -> database.playlistsDao().observeItems(playlistId)
         }
     }
 
     fun playlistPreviewItems(playlistId: Long): Flow<List<PlaylistItemEntity>> {
-        return if (playlistId == AUTO_PLAYLIST_ID) {
-            database.playbackStatsDao().observeTop(200).map { stats -> buildMostPlayedPlaylist(stats).take(4) }
-        } else {
-            database.playlistsDao().observeItems(playlistId).map { it.take(4) }
+        return when (playlistId) {
+            NEXORA_MOST_PLAYED_PLAYLIST_ID -> {
+                database.playbackStatsDao().observeTop(200).map { stats -> buildMostPlayedPlaylist(stats).take(4) }
+            }
+            NEXORA_LIKED_PLAYLIST_ID -> {
+                database.favoritesDao().observeAll().map { favorites -> buildLikedPlaylist(favorites).take(4) }
+            }
+            else -> database.playlistsDao().observeItems(playlistId).map { it.take(4) }
         }
     }
 
     fun renamePlaylist(playlist: PlaylistEntity, name: String) {
-        if (playlist.id == AUTO_PLAYLIST_ID || name.isBlank()) return
+        if (playlist.id < 0 || name.isBlank()) return
         viewModelScope.launch {
             database.playlistsDao().updatePlaylist(playlist.copy(name = name.trim(), updatedAt = System.currentTimeMillis()))
         }
     }
 
     fun duplicatePlaylist(playlist: PlaylistEntity, items: List<PlaylistItemEntity>) {
-        if (playlist.id == AUTO_PLAYLIST_ID) return
+        if (playlist.id < 0) return
         viewModelScope.launch {
             val newId = database.playlistsDao().insertPlaylist(
                 PlaylistEntity(name = getApplication<Application>().getString(R.string.playlist_copy_suffix, playlist.name))
@@ -1105,7 +1198,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun exportPlaylist(playlist: PlaylistEntity, items: List<PlaylistItemEntity>) {
-        if (playlist.id == AUTO_PLAYLIST_ID) return
+        if (playlist.id < 0) return
         viewModelScope.launch {
             val dir = java.io.File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC), "Playlists")
             dir.mkdirs()
@@ -1137,6 +1230,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun removeFromPlaylist(itemId: Long) {
         viewModelScope.launch {
             database.playlistsDao().deletePlaylistItem(itemId)
+        }
+    }
+
+    fun removeFavoritePlaylistItem(item: PlaylistItemEntity) {
+        viewModelScope.launch {
+            database.favoritesDao().delete(item.mediaId, item.mediaKind)
         }
     }
 
@@ -1204,23 +1303,55 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun mergeWithAutoPlaylist(
+        favorites: List<FavoriteMediaEntity>,
         stats: List<PlaybackStatsEntity>,
         playlists: List<PlaylistEntity>
     ): List<PlaylistEntity> {
-        val auto = PlaylistEntity(
-            id = AUTO_PLAYLIST_ID,
+        val liked = PlaylistEntity(
+            id = NEXORA_LIKED_PLAYLIST_ID,
+            name = getApplication<Application>().getString(R.string.playlist_liked_songs),
+            createdAt = 0L,
+            updatedAt = favorites.filter { it.mediaKind == MediaKind.AUDIO.name }.maxOfOrNull { it.addedAt } ?: 0L
+        )
+        val mostPlayed = PlaylistEntity(
+            id = NEXORA_MOST_PLAYED_PLAYLIST_ID,
             name = getApplication<Application>().getString(R.string.playlist_most_played),
             createdAt = 0L,
-            updatedAt = stats.maxOfOrNull { it.lastPlayedAt } ?: 0L
+            updatedAt = stats.filter { it.mediaKind == MediaKind.AUDIO.name }.maxOfOrNull { it.lastPlayedAt } ?: 0L
         )
         return buildList {
-            add(auto)
-            addAll(playlists.filterNot { it.id == AUTO_PLAYLIST_ID })
+            add(liked)
+            add(mostPlayed)
+            addAll(playlists.filterNot { it.id < 0 })
         }
     }
 
     private fun buildMostPlayedPlaylist(stats: List<PlaybackStatsEntity>): List<PlaylistItemEntity> {
-        return presentation.playlists.mostPlayedItems(stats, AUTO_PLAYLIST_ID)
+        return presentation.playlists.mostPlayedItems(
+            stats.filter { it.mediaKind == MediaKind.AUDIO.name },
+            NEXORA_MOST_PLAYED_PLAYLIST_ID
+        )
+    }
+
+    private fun buildLikedPlaylist(favorites: List<FavoriteMediaEntity>): List<PlaylistItemEntity> {
+        return favorites
+            .filter { it.mediaKind == MediaKind.AUDIO.name }
+            .sortedByDescending { it.addedAt }
+            .mapIndexed { index, favorite ->
+                PlaylistItemEntity(
+                    id = -("${favorite.mediaKind}:${favorite.mediaId}".hashCode().toLong().absoluteValue.coerceAtLeast(1L)),
+                    playlistId = NEXORA_LIKED_PLAYLIST_ID,
+                    mediaId = favorite.mediaId,
+                    mediaKind = favorite.mediaKind,
+                    title = favorite.title,
+                    artist = favorite.artist,
+                    album = favorite.album,
+                    durationMs = favorite.durationMs,
+                    uriString = favorite.uriString,
+                    orderIndex = index,
+                    addedAt = favorite.addedAt
+                )
+            }
     }
 
     private fun recordPlaybackIfNeeded(item: MediaEntry) {

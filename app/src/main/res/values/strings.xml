@@ -1,4 +1,3 @@
-<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -48,7 +47,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for "%1$s"</string>
+    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -243,6 +242,19 @@
     <string name="hidden_folder_path">Folder path</string>
     <string name="hidden_folder_hide">Hide</string>
     <string name="hidden_folder_remove">Remove</string>
+    <string name="settings_no_hidden_files">No hidden files</string>
+    <string name="settings_hidden_files_count">%1$d hidden files</string>
+    <string name="hidden_media_title">Hidden files</string>
+    <string name="hidden_media_restore_all">Restore all</string>
+    <string name="hidden_media_restore_selected">Restore selected</string>
+    <string name="hidden_media_restore_hint">Select the audio or video files you want to show in your library again.</string>
+    <string name="hidden_media_empty_desc">Hidden files will appear here when they are still available on your device.</string>
+    <string name="hidden_media_audio_section">Hidden audio</string>
+    <string name="hidden_media_video_section">Hidden videos</string>
+    <string name="hidden_media_unknown_audio">Unknown audio</string>
+    <string name="hidden_media_unknown_video">Unknown video</string>
+    <string name="hidden_media_show">Show</string>
+    <string name="hidden_media_selected_count">%1$d selected</string>
     <string name="hidden_audio_title">Hidden songs</string>
     <string name="hidden_audio_restore_all">Restore all</string>
     <string name="hidden_audio_restore_hint">Tap a song to show it in your library again.</string>
@@ -353,6 +365,8 @@ GitHub: github.com/Gh0stDeveloper
     <string name="update_required_title">Required update</string>
     <string name="update_available_title">New version available</string>
     <string name="update_notice_message">Nexora Player %1$s is now available. %2$s</string>
+    <string name="playlist_liked_desc">Saved from the like button</string>
+    <string name="playlist_liked_songs">Liked songs</string>
     <string name="playlist_most_played">Most played</string>
     <string name="apk_download_error">Could not download the update.</string>
     <string name="apk_server_error">The server responded %1$d while downloading the APK. %2$s</string>
@@ -446,7 +460,7 @@ GitHub: github.com/Gh0stDeveloper
     <string name="release_recent_body">Fixes, new features and optimizations published from the server.</string>
     <string name="release_note_fallback">Improvement included in this version.</string>
     <string name="release_preparing">Preparing update…</string>
-    <string name="release_install_permission_hint">After authorizing external installs, tap Download again.</string>
+    <string name="release_install_permission_hint">Nexora Player needs permission to install its downloaded APK. Tap Activate permission, enable “Allow from this source”, then return to the app; the download will start automatically.</string>
     <string name="release_open_browser">Open download in browser</string>
     <string name="release_required_no_later">The “Update later” option is disabled because the server marked this version as required.</string>
     <string name="release_downloading">Downloading…</string>
@@ -549,6 +563,7 @@ Third line</string>
     <string name="video_rename_file">Rename file</string>
     <string name="video_external_subtitles">External .srt subtitles</string>
     <string name="video_aspect_ratio">Ratio: %1$s</string>
+    <string name="video_now_playing_badge">Now playing</string>
     <string name="video_up_next">Up next</string>
     <string name="video_hide">Hide video</string>
     <string name="widget_no_lyrics">Original lyrics not saved</string>
@@ -610,6 +625,7 @@ Third line</string>
     <string name="music_delete">Delete</string>
     <string name="action_refresh">Refresh</string>
     <string name="video_options_content">Options</string>
+    <string name="video_title_hint">Video name</string>
     <string name="video_edit_file">Edit file</string>
     <string name="video_delete_file">Delete file</string>
     <string name="video_edit_chooser">Edit video</string>
@@ -649,6 +665,15 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
+    <string name="update_already_latest">You already have the latest version: %1$s (build %2$d).</string>
+    <string name="apk_invalid_package">The downloaded file is not a valid Android APK.</string>
+    <string name="apk_package_mismatch">This APK belongs to %2$s, but this app is %1$s.</string>
+    <string name="apk_not_newer">The downloaded APK is not newer. Installed: %1$s (build %2$d). Downloaded: %3$s (build %4$d). Update the APK versionCode or the server versionCode.</string>
+    <string name="apk_version_mismatch">The server says the update is build %1$d, but the downloaded APK is build %2$d. Correct the server data or upload the correct APK.</string>
+    <string name="action_ok">OK</string>
+    <string name="update_status_dialog_title">Update status</string>
+    <string name="release_authorize_install">Activate permission</string>
+
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Restoring online session…</string>
     <string name="online_auth_title">Nexora Online</string>

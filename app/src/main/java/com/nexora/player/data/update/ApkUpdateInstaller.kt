@@ -1,5 +1,6 @@
 package com.nexora.player.data.update
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -23,13 +24,43 @@ class ApkUpdateInstaller(private val context: Context) {
     private val _state = MutableStateFlow(UpdateInstallState())
     val state: StateFlow<UpdateInstallState> = _state
 
+    fun canRequestPackageInstalls(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()
+    }
+
+    fun showInstallPermissionRequired() {
+        _state.value = UpdateInstallState(
+            active = true,
+            downloading = false,
+            waitingForInstallPermission = true,
+            message = context.getString(R.string.apk_authorize_install),
+            error = null
+        )
+    }
+
+    fun openInstallPermissionSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val permissionIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(permissionIntent)
+        }
+    }
+
     suspend fun downloadAndOpenInstaller(info: RemoteUpdateInfo) = withContext(Dispatchers.IO) {
+        if (!canRequestPackageInstalls()) {
+            showInstallPermissionRequired()
+            return@withContext
+        }
+
         val downloadUrl = info.urls.download.ifBlank { "${BuildConfig.NEXORA_SERVER_URL}/api/download/latest" }
         val expectedSize = info.latestVersion.apkSizeBytes
         val expectedSha256 = info.latestVersion.apkSha256?.lowercase()?.takeIf { it.isNotBlank() }
         val fileName = buildApkFileName(info)
-        val updatesDir = File(context.externalCacheDir ?: context.cacheDir, "updates").apply { mkdirs() }
+        val updatesDir = buildTemporaryUpdatesDir()
         val outFile = File(updatesDir, fileName)
+        val tempFile = File(updatesDir, "$fileName.part.apk")
 
         _state.value = UpdateInstallState(
             active = true,
@@ -40,18 +71,31 @@ class ApkUpdateInstaller(private val context: Context) {
         )
 
         runCatching {
-            download(downloadUrl, outFile, expectedSize)
-            validate(outFile, expectedSize, expectedSha256)
+            cleanOldApks(updatesDir, keepFileName = fileName)
+            if (outFile.exists()) outFile.delete()
+            if (tempFile.exists()) tempFile.delete()
+
+            download(downloadUrl, tempFile, expectedSize)
+            validate(tempFile, expectedSize, expectedSha256)
+            validateDownloadedApk(tempFile, info)
+
+            if (!tempFile.renameTo(outFile)) {
+                tempFile.copyTo(outFile, overwrite = true)
+                tempFile.delete()
+            }
+
             _state.value = _state.value.copy(
                 downloading = false,
                 progressPercent = 100,
                 downloadedBytes = outFile.length(),
                 totalBytes = outFile.length(),
                 message = context.getString(R.string.apk_downloaded_opening),
-                error = null
+                error = null,
+                waitingForInstallPermission = false
             )
             openInstaller(outFile)
         }.onFailure { throwable ->
+            tempFile.delete()
             _state.value = UpdateInstallState(
                 active = true,
                 downloading = false,
@@ -63,6 +107,24 @@ class ApkUpdateInstaller(private val context: Context) {
 
     fun clear() {
         _state.value = UpdateInstallState()
+    }
+
+    private fun buildTemporaryUpdatesDir(): File {
+        val baseDir = context.externalCacheDir ?: context.cacheDir
+        return File(baseDir, "NexoraPlayer/updates").apply {
+            mkdirs()
+            runCatching { File(this, ".nomedia").createNewFile() }
+        }
+    }
+
+    private fun cleanOldApks(dir: File, keepFileName: String) {
+        dir.listFiles()
+            ?.filter { file ->
+                file.isFile &&
+                    file.name != keepFileName &&
+                    file.extension.equals("apk", ignoreCase = true)
+            }
+            ?.forEach { file -> runCatching { file.delete() } }
     }
 
     private fun download(downloadUrl: String, outFile: File, expectedSize: Long?) {
@@ -127,19 +189,55 @@ class ApkUpdateInstaller(private val context: Context) {
         }
     }
 
-    private fun openInstaller(file: File) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
-            _state.value = _state.value.copy(
-                downloading = false,
-                waitingForInstallPermission = true,
-                message = context.getString(R.string.apk_authorize_install),
-                error = null
+    @Suppress("DEPRECATION")
+    private fun validateDownloadedApk(file: File, info: RemoteUpdateInfo) {
+        val packageInfo = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+            ?: throw IllegalStateException(context.getString(R.string.apk_invalid_package))
+
+        if (packageInfo.packageName != BuildConfig.APPLICATION_ID) {
+            throw IllegalStateException(
+                context.getString(
+                    R.string.apk_package_mismatch,
+                    BuildConfig.APPLICATION_ID,
+                    packageInfo.packageName
+                )
             )
-            val permissionIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(permissionIntent)
+        }
+
+        val apkVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode
+        } else {
+            packageInfo.versionCode.toLong()
+        }
+        val installedVersionCode = BuildConfig.VERSION_CODE.toLong()
+
+        if (apkVersionCode <= installedVersionCode) {
+            throw IllegalStateException(
+                context.getString(
+                    R.string.apk_not_newer,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE,
+                    packageInfo.versionName ?: "unknown",
+                    apkVersionCode
+                )
+            )
+        }
+
+        val serverVersionCode = info.latestVersion.versionCode.toLong()
+        if (serverVersionCode > 0L && apkVersionCode != serverVersionCode) {
+            throw IllegalStateException(
+                context.getString(
+                    R.string.apk_version_mismatch,
+                    serverVersionCode,
+                    apkVersionCode
+                )
+            )
+        }
+    }
+
+    private fun openInstaller(file: File) {
+        if (!canRequestPackageInstalls()) {
+            showInstallPermissionRequired()
             return
         }
 
@@ -150,8 +248,10 @@ class ApkUpdateInstaller(private val context: Context) {
         )
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
+            clipData = ClipData.newRawUri("Nexora Player update", uri)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
         }
         context.startActivity(intent)
     }
@@ -170,7 +270,7 @@ class ApkUpdateInstaller(private val context: Context) {
     }
 
     private fun buildApkFileName(info: RemoteUpdateInfo): String {
-        val raw = "Nexora-Player-${info.latestVersion.versionName}.apk"
+        val raw = "Nexora-Player-${info.latestVersion.versionName}-build-${info.latestVersion.versionCode}.apk"
         return raw.replace(Regex("[^A-Za-z0-9._-]"), "-").let {
             if (it.endsWith(".apk", ignoreCase = true)) it else "$it.apk"
         }

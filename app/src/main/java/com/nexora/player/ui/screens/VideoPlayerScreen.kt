@@ -10,6 +10,7 @@ import android.content.res.Configuration
 import android.os.Build
 import android.media.AudioManager
 import android.provider.MediaStore
+import android.provider.Settings
 import android.view.ViewGroup
 import androidx.annotation.StringRes
 import androidx.activity.compose.BackHandler
@@ -41,6 +42,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -203,10 +205,8 @@ fun VideoPlayerScreen(
     val currentItem   = snapshot.currentItem ?: current
 
     // ── Estados reactivos ────────────────────────────────────────────────────
-    var brightness by remember {
-        mutableFloatStateOf(
-            activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.65f
-        )
+    var brightness by remember(activity, context) {
+        mutableFloatStateOf(resolveInitialBrightness(activity, context))
     }
     // volumeFraction es state local → se actualiza en setVolume para reflejarse en UI
     var volumeFraction by remember {
@@ -219,14 +219,19 @@ fun VideoPlayerScreen(
     var seekFeedbackMs           by remember { mutableLongStateOf(0L) }
     var showBrightnessHud        by remember { mutableStateOf(false) }
     var showVolumeHud            by remember { mutableStateOf(false) }
+    var queueInteracting         by remember { mutableStateOf(false) }
 
     // ── Orientación / barras del sistema ─────────────────────────────────────
     DisposableEffect(isLandscape) {
         activity?.window?.let { win ->
             WindowCompat.getInsetsController(win, view).apply {
-                hide(WindowInsetsCompat.Type.systemBars())
-                systemBarsBehavior =
-                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                if (isLandscape) {
+                    hide(WindowInsetsCompat.Type.systemBars())
+                    systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                } else {
+                    show(WindowInsetsCompat.Type.systemBars())
+                }
             }
         }
         if (isLandscape) {
@@ -243,10 +248,12 @@ fun VideoPlayerScreen(
 
     // Auto-ocultar controles solo mientras el contenido está reproduciéndose.
     // Si queda pausado, los controles y “A continuación” permanecen visibles.
-    LaunchedEffect(landscapeControlsVisible, snapshot.isPlaying) {
-        if (landscapeControlsVisible && snapshot.isPlaying) {
+    LaunchedEffect(landscapeControlsVisible, snapshot.isPlaying, queueInteracting, showQueuePanel) {
+        if (landscapeControlsVisible && snapshot.isPlaying && !queueInteracting && !showQueuePanel) {
             delay(5_000L)
-            landscapeControlsVisible = false
+            if (!queueInteracting && !showQueuePanel) {
+                landscapeControlsVisible = false
+            }
         }
     }
     LaunchedEffect(snapshot.isPlaying) {
@@ -289,7 +296,7 @@ fun VideoPlayerScreen(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     fun setBrightness(value: Float) {
-        brightness = value.coerceIn(0.05f, 1f)
+        brightness = value.coerceIn(0f, 1f)
         activity?.window?.let { win ->
             val lp = win.attributes
             lp.screenBrightness = brightness
@@ -382,9 +389,13 @@ fun VideoPlayerScreen(
 
     val durationMs       = exoPlayer.duration.takeIf { it > 0L } ?: currentItem.durationMs
     val queue            = snapshot.queue
-    // Mostrar la lista completa de videos disponible en la cola. Antes se mostraban
-    // solo unos pocos elementos posteriores al actual, lo que hacía que
-    // “A continuación” pareciera incompleto.
+    // La cola se conserva completa para que el usuario pueda ir hacia videos
+    // anteriores o posteriores, pero las listas horizontales se posicionan en
+    // el video actual y lo resaltan visualmente.
+    val currentQueueIndex = snapshot.currentIndex.takeIf { it in queue.indices }
+        ?: queue.indexOfFirst { it.id == currentItem.id && it.kind == currentItem.kind }
+            .takeIf { it >= 0 }
+        ?: 0
     val queueFromCurrent = queue
     val queueStartIndex = 0
 
@@ -399,6 +410,7 @@ fun VideoPlayerScreen(
             queue                 = queue,
             queueFromCurrent      = queueFromCurrent,
             queueStartIndex       = queueStartIndex,
+            currentQueueIndex     = currentQueueIndex,
             isPlaying             = snapshot.isPlaying,
             positionMs            = exoPlayer.currentPosition,
             durationMs            = durationMs,
@@ -423,6 +435,7 @@ fun VideoPlayerScreen(
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             },
             onToggleQueue         = { showQueuePanel = !showQueuePanel; landscapeControlsVisible = true },
+            onQueueInteraction    = { active -> queueInteracting = active; if (active) landscapeControlsVisible = true },
             onBack                = {
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             },
@@ -450,6 +463,7 @@ fun VideoPlayerScreen(
             queue                 = queue,
             queueFromCurrent      = queueFromCurrent,
             queueStartIndex       = queueStartIndex,
+            currentQueueIndex     = currentQueueIndex,
             isPlaying             = snapshot.isPlaying,
             positionMs            = exoPlayer.currentPosition,
             durationMs            = durationMs,
@@ -474,6 +488,7 @@ fun VideoPlayerScreen(
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             },
             onToggleQueue         = { showQueuePanel = !showQueuePanel; landscapeControlsVisible = true },
+            onQueueInteraction    = { active -> queueInteracting = active; if (active) landscapeControlsVisible = true },
             onBack                = onClose,
             onToggleLock          = { controlsLocked = !controlsLocked; landscapeControlsVisible = true },
             onAspectModeSelected  = { aspectModeName = it.name; landscapeControlsVisible = true },
@@ -533,6 +548,7 @@ private fun PortraitScreen(
     controlsLocked     : Boolean,
     queueFromCurrent   : List<MediaEntry>,
     queueStartIndex    : Int,
+    currentQueueIndex  : Int = 0,
     isPlaying          : Boolean,
     positionMs         : Long,
     durationMs         : Long,
@@ -545,6 +561,7 @@ private fun PortraitScreen(
     onNext             : () -> Unit,
     onEnterFullscreen  : () -> Unit,
     onClose            : () -> Unit,
+    onQueueInteraction : (Boolean) -> Unit = {},
     onBrightnessChange : (Float) -> Unit,
     onVolumeChange     : (Float) -> Unit,
     onJumpToQueueIndex : (Int) -> Unit,
@@ -888,12 +905,25 @@ private fun PortraitScreen(
                             fontSize = 12.sp
                         )
                     }
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val queueListState = rememberLazyListState()
+                    LaunchedEffect(currentQueueIndex, queueFromCurrent.size) {
+                        val visibleIndex = currentQueueIndex - queueStartIndex
+                        if (visibleIndex in queueFromCurrent.indices) {
+                            queueListState.scrollToItem(visibleIndex)
+                        }
+                    }
+                    LazyRow(
+                        state = queueListState,
+                        modifier = Modifier.keepQueueVisibleWhileTouched(onQueueInteraction),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         itemsIndexed(queueFromCurrent) { index, item ->
+                            val absoluteIndex = queueStartIndex + index
                             QueueItemCard(
-                                item    = item,
-                                index   = queueStartIndex + index,
-                                onClick = { onJumpToQueueIndex(queueStartIndex + index) }
+                                item      = item,
+                                index     = absoluteIndex,
+                                isCurrent = absoluteIndex == currentQueueIndex,
+                                onClick   = { onJumpToQueueIndex(absoluteIndex) }
                             )
                         }
                     }
@@ -921,6 +951,7 @@ private fun LandscapeScreen(
     queue              : List<MediaEntry>,
     queueFromCurrent   : List<MediaEntry>,
     queueStartIndex    : Int,
+    currentQueueIndex  : Int,
     isPlaying          : Boolean,
     positionMs         : Long,
     durationMs         : Long,
@@ -943,6 +974,7 @@ private fun LandscapeScreen(
     onNext             : () -> Unit,
     onExitFullscreen   : () -> Unit,
     onToggleQueue      : () -> Unit,
+    onQueueInteraction : (Boolean) -> Unit,
     onBack             : () -> Unit,
     onToggleLock       : () -> Unit,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
@@ -1100,6 +1132,7 @@ private fun LandscapeScreen(
                 queueCount         = queue.size,
                 queueFromCurrent   = queueFromCurrent,
                 queueStartIndex    = queueStartIndex,
+                currentQueueIndex  = currentQueueIndex,
                 isPlaying          = isPlaying,
                 positionMs         = positionMs,
                 durationMs         = durationMs,
@@ -1109,6 +1142,7 @@ private fun LandscapeScreen(
                 onNext             = onNext,
                 onExitFullscreen   = onExitFullscreen,
                 onToggleQueue      = onToggleQueue,
+                onQueueInteraction = onQueueInteraction,
                 onBack             = onBack,
                 onToggleLock       = onToggleLock,
                 onAspectModeSelected = onAspectModeSelected,
@@ -1136,6 +1170,8 @@ private fun LandscapeScreen(
                     .padding(horizontal = 24.dp, vertical = 10.dp),
                 items       = queueFromCurrent,
                 startIndex  = queueStartIndex,
+                currentIndex = currentQueueIndex,
+                onQueueInteraction = onQueueInteraction,
                 onItemClick = onJumpToQueueIndex
             )
         }
@@ -1157,6 +1193,7 @@ private fun LandscapeControls(
     queueCount         : Int,
     queueFromCurrent   : List<MediaEntry>,
     queueStartIndex    : Int,
+    currentQueueIndex  : Int,
     isPlaying          : Boolean,
     positionMs         : Long,
     durationMs         : Long,
@@ -1166,6 +1203,7 @@ private fun LandscapeControls(
     onNext             : () -> Unit,
     onExitFullscreen   : () -> Unit,
     onToggleQueue      : () -> Unit,
+    onQueueInteraction : (Boolean) -> Unit,
     onBack             : () -> Unit,
     onToggleLock       : () -> Unit,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
@@ -1297,18 +1335,31 @@ private fun LandscapeControls(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = if (isLandscape) 16.dp else 56.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Cola preview
             if (queueFromCurrent.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val queueListState = rememberLazyListState()
+                LaunchedEffect(currentQueueIndex, queueFromCurrent.size) {
+                    val visibleIndex = currentQueueIndex - queueStartIndex
+                    if (visibleIndex in queueFromCurrent.indices) {
+                        queueListState.scrollToItem(visibleIndex)
+                    }
+                }
+                LazyRow(
+                    state = queueListState,
+                    modifier = Modifier.keepQueueVisibleWhileTouched(onQueueInteraction),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     itemsIndexed(queueFromCurrent) { index, item ->
+                        val absoluteIndex = queueStartIndex + index
                         QueueItemCard(
-                            item    = item,
-                            index   = queueStartIndex + index,
-                            onClick = { onJumpToQueueIndex(queueStartIndex + index) },
-                            compact = true
+                            item      = item,
+                            index     = absoluteIndex,
+                            isCurrent = absoluteIndex == currentQueueIndex,
+                            onClick   = { onJumpToQueueIndex(absoluteIndex) },
+                            compact   = true
                         )
                     }
                 }
@@ -1591,12 +1642,29 @@ private fun PillTag(text: String) {
     )
 }
 
+private fun Modifier.keepQueueVisibleWhileTouched(onInteraction: (Boolean) -> Unit): Modifier = pointerInput(onInteraction) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        onInteraction(true)
+        try {
+            do {
+                val event = awaitPointerEvent()
+            } while (event.changes.any { it.pressed })
+        } finally {
+            onInteraction(false)
+        }
+    }
+}
+
+
 /** Drawer de cola completa (modal) */
 @Composable
 private fun QueueDrawer(
     modifier   : Modifier = Modifier,
     items      : List<MediaEntry>,
     startIndex : Int,
+    currentIndex: Int,
+    onQueueInteraction: (Boolean) -> Unit,
     onItemClick: (Int) -> Unit
 ) {
     Surface(
@@ -1618,12 +1686,25 @@ private fun QueueDrawer(
                 }
             }
             HorizontalDivider(color = NxDivider)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val queueListState = rememberLazyListState()
+            LaunchedEffect(currentIndex, items.size) {
+                val visibleIndex = currentIndex - startIndex
+                if (visibleIndex in items.indices) {
+                    queueListState.scrollToItem(visibleIndex)
+                }
+            }
+            LazyRow(
+                state = queueListState,
+                modifier = Modifier.keepQueueVisibleWhileTouched(onQueueInteraction),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 itemsIndexed(items) { index, item ->
+                    val absoluteIndex = startIndex + index
                     QueueItemCard(
-                        item    = item,
-                        index   = startIndex + index,
-                        onClick = { onItemClick(startIndex + index) }
+                        item      = item,
+                        index     = absoluteIndex,
+                        isCurrent = absoluteIndex == currentIndex,
+                        onClick   = { onItemClick(absoluteIndex) }
                     )
                 }
             }
@@ -1636,6 +1717,7 @@ private fun QueueDrawer(
 private fun QueueItemCard(
     item    : MediaEntry,
     index   : Int,
+    isCurrent: Boolean = false,
     onClick : () -> Unit,
     compact : Boolean = false
 ) {
@@ -1646,13 +1728,15 @@ private fun QueueItemCard(
     Card(
         onClick = onClick,
         shape   = RoundedCornerShape(14.dp),
-        colors  = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.055f)),
-        border  = BorderStroke(1.dp, NxDivider),
+        colors  = CardDefaults.cardColors(
+            containerColor = if (isCurrent) NxAccent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.055f)
+        ),
+        border  = BorderStroke(if (isCurrent) 1.5.dp else 1.dp, if (isCurrent) NxAccent else NxDivider),
         modifier = Modifier.size(width = cardW, height = cardH)
     ) {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.height(thumbH)) {
-                MediaArtwork(item = item, modifier = Modifier.fillMaxSize())
+                MediaArtwork(item = item, modifier = Modifier.fillMaxSize(), cornerRadius = 0.dp)
                 Box(
                     Modifier
                         .fillMaxSize()
@@ -1660,6 +1744,21 @@ private fun QueueItemCard(
                             Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.5f)))
                         )
                 )
+                if (isCurrent) {
+                    Text(
+                        text = stringResource(R.string.video_now_playing_badge),
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(5.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(alpha = 0.72f))
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
                 Text(
                     "#${index + 1}",
                     modifier = Modifier
@@ -1752,6 +1851,14 @@ private fun String.withVideoExtension(item: MediaEntry): String {
         else -> ".mp4"
     }
     return this + extension
+}
+
+private fun resolveInitialBrightness(activity: Activity?, context: Context): Float {
+    val windowBrightness = activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f }
+    if (windowBrightness != null) return windowBrightness.coerceIn(0f, 1f)
+    return runCatching {
+        Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+    }.getOrDefault(0.65f).coerceIn(0f, 1f)
 }
 
 private fun Context.findActivity(): Activity? = when (this) {

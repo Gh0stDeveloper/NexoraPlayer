@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nexora.player.R
+import com.nexora.player.NEXORA_LIKED_PLAYLIST_ID
 import com.nexora.player.data.local.PlaylistEntity
 import com.nexora.player.data.local.PlaylistItemEntity
 import com.nexora.player.ui.components.MediaArtwork
@@ -76,14 +77,14 @@ fun PlaylistsScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         PlaylistHeader(
-            playlistCount = playlists.size,
+            playlistCount = playlists.count { it.id >= 0 },
             onCreate = { showDialog = true }
         )
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items(playlists, key = { it.id }) { playlist ->
                 val preview by playlistPreviewItems(playlist.id)
@@ -135,18 +136,18 @@ private fun PlaylistHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 12.dp),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(Brush.linearGradient(listOf(Color(0xFFF54047), Color(0xFFE64366)))),
                 contentAlignment = Alignment.Center
             ) {
@@ -179,22 +180,22 @@ private fun PlaylistCard(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onOpen)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             PlaylistPreviewMosaic(
                 items = preview,
-                modifier = Modifier.size(82.dp)
+                modifier = Modifier.size(58.dp)
             )
 
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         playlist.name,
@@ -214,7 +215,11 @@ private fun PlaylistCard(
                     }
                 }
                 Text(
-                    if (isAuto) stringResource(R.string.playlist_auto_replays_desc) else DateFormat.getDateInstance().format(Date(playlist.createdAt)),
+                    when {
+                        playlist.id == NEXORA_LIKED_PLAYLIST_ID -> stringResource(R.string.playlist_liked_desc)
+                        isAuto -> stringResource(R.string.playlist_auto_replays_desc)
+                        else -> DateFormat.getDateInstance().format(Date(playlist.createdAt))
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -245,8 +250,8 @@ private fun PlaylistPreviewMosaic(
     val preview = items.take(4)
 
     Surface(
-        modifier = modifier.clip(RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
+        modifier = modifier.clip(RoundedCornerShape(4.dp)),
+        shape = RoundedCornerShape(4.dp),
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -262,7 +267,8 @@ private fun PlaylistPreviewMosaic(
                             if (index < preview.size) {
                                 MediaArtwork(
                                     item = preview[index].toMediaEntry(),
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    cornerRadius = 0.dp
                                 )
                             } else {
                                 Box(
