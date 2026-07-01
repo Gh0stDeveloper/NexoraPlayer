@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Key
@@ -33,7 +34,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AssistChip
@@ -138,7 +138,6 @@ fun OnlineScreen(
         modifier = modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        OnlineSectionSwitcher(selectedTab = safeTab, onTabSelected = onTabSelected)
         when (safeTab) {
             ONLINE_TAB_HOME -> OnlineHomeContent(
                 state = state,
@@ -158,6 +157,8 @@ fun OnlineScreen(
                 onLogout = onLogout,
                 onUpdateProfile = onUpdateProfile,
                 onChangePassword = onChangePassword,
+                onOpenUpload = { onTabSelected(ONLINE_TAB_UPLOAD) },
+                onOpenHome = { onTabSelected(ONLINE_TAB_HOME) },
                 modifier = Modifier.fillMaxSize()
             )
             ONLINE_TAB_UPLOAD -> OnlineUploadContent(
@@ -167,47 +168,9 @@ fun OnlineScreen(
                 onToggleSelection = onToggleUploadSelection,
                 onClearSelection = onClearUploadSelection,
                 onUploadSelected = onUploadSelected,
+                onBackToProfile = { onTabSelected(ONLINE_TAB_ACCOUNT) },
                 modifier = Modifier.fillMaxSize()
             )
-        }
-    }
-}
-
-@Composable
-private fun OnlineSectionSwitcher(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-    val tabs = listOf(
-        ONLINE_TAB_HOME to R.string.online_tab_home,
-        ONLINE_TAB_SEARCH to R.string.online_tab_search,
-        ONLINE_TAB_ACCOUNT to R.string.online_tab_account,
-        ONLINE_TAB_UPLOAD to R.string.online_tab_upload
-    )
-    ElevatedCard(shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            tabs.forEach { (index, labelRes) ->
-                val selected = selectedTab == index
-                Surface(
-                    onClick = { onTabSelected(index) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(20.dp),
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                    tonalElevation = if (selected) 3.dp else 0.dp
-                ) {
-                    Box(modifier = Modifier.padding(horizontal = 8.dp, vertical = 11.dp), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = stringResource(labelRes),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -456,8 +419,7 @@ private fun OnlineHomeContent(
         item {
             OnlineStatsRow(
                 songsCount = state.songs.size,
-                resultsCount = state.searchResults.size,
-                selectedCount = state.selectedUploadIds.size
+                resultsCount = state.searchResults.size
             )
         }
         item {
@@ -484,11 +446,10 @@ private fun OnlineHomeContent(
 }
 
 @Composable
-private fun OnlineStatsRow(songsCount: Int, resultsCount: Int, selectedCount: Int) {
+private fun OnlineStatsRow(songsCount: Int, resultsCount: Int) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OnlineStatCard(label = stringResource(R.string.online_stats_songs), value = songsCount.toString(), modifier = Modifier.weight(1f))
         OnlineStatCard(label = stringResource(R.string.online_stats_results), value = resultsCount.toString(), modifier = Modifier.weight(1f))
-        OnlineStatCard(label = stringResource(R.string.online_stats_upload_ready), value = selectedCount.toString(), modifier = Modifier.weight(1f))
     }
 }
 
@@ -526,27 +487,16 @@ private fun OnlineSearchContent(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
-            ElevatedCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.online_tab_search), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(
-                                text = if (state.onlineQuery.isBlank()) stringResource(R.string.online_search_from_top) else state.onlineQuery,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+        if (state.onlineQuery.isNotBlank()) {
+            item {
+                SectionTitleRow(
+                    title = state.onlineQuery,
+                    action = {
+                        IconButton(onClick = onClearSearch) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.online_clear_search))
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AssistChip(onClick = onClearSearch, label = { Text(stringResource(R.string.online_clear_search)) })
-                        AssistChip(onClick = onSearch, label = { Text(stringResource(R.string.online_search_action)) })
-                    }
-                }
+                )
             }
         }
         if (state.searching) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
@@ -569,6 +519,8 @@ private fun OnlineAccountContent(
     onLogout: () -> Unit,
     onUpdateProfile: (String) -> Unit,
     onChangePassword: (String) -> Unit,
+    onOpenUpload: () -> Unit,
+    onOpenHome: () -> Unit,
     modifier: Modifier
 ) {
     val session = state.session
@@ -578,6 +530,9 @@ private fun OnlineAccountContent(
     ) {
         item {
             OnlineAccountHero(session = session, onLogout = onLogout)
+        }
+        item {
+            ProfileActionsCard(onOpenUpload = onOpenUpload, onOpenHome = onOpenHome)
         }
         item {
             ProfileEditorCard(state = state, onUpdateProfile = onUpdateProfile)
@@ -616,6 +571,39 @@ private fun OnlineAccountHero(session: OnlineUserSession?, onLogout: () -> Unit)
                 Icon(Icons.Filled.Logout, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
                 Text(stringResource(R.string.online_logout))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileActionsCard(onOpenUpload: () -> Unit, onOpenHome: () -> Unit) {
+    ElevatedCard(shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(stringResource(R.string.online_upload_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.online_upload_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onOpenUpload,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Icon(Icons.Filled.CloudUpload, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.online_tab_upload))
+                }
+                FilledTonalButton(
+                    onClick = onOpenHome,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Text(stringResource(R.string.online_tab_home))
+                }
             }
         }
     }
@@ -764,6 +752,7 @@ private fun OnlineUploadContent(
     onToggleSelection: (MediaEntry) -> Unit,
     onClearSelection: () -> Unit,
     onUploadSelected: () -> Unit,
+    onBackToProfile: () -> Unit,
     modifier: Modifier
 ) {
     LazyColumn(
@@ -778,6 +767,9 @@ private fun OnlineUploadContent(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(stringResource(R.string.online_upload_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text(stringResource(R.string.online_upload_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(onClick = onBackToProfile) {
+                            Text(stringResource(R.string.action_back))
                         }
                     }
                     Text(stringResource(R.string.online_upload_selected, selectedIds.size), fontWeight = FontWeight.SemiBold)

@@ -165,8 +165,12 @@ class MainActivity : AppCompatActivity() {
                                     searchExpanded = onlineSearchExpanded,
                                     onSearchExpandedChange = { expanded ->
                                         onlineSearchExpanded = expanded
-                                        if (expanded) onlineTab = 1
-                                        if (!expanded && state.online.onlineQuery.isNotBlank()) viewModel.clearOnlineSearch()
+                                        if (expanded) {
+                                            onlineTab = 1
+                                        } else {
+                                            onlineTab = 0
+                                            if (state.online.onlineQuery.isNotBlank()) viewModel.clearOnlineSearch()
+                                        }
                                     },
                                     onQueryChange = { query ->
                                         onlineTab = 1
@@ -225,6 +229,10 @@ class MainActivity : AppCompatActivity() {
                                 selected = if (state.selectedDestination in destinations) state.selectedDestination else destinations.first(),
                                 onDestinationSelected = { destination ->
                                     searchExpanded = false
+                                    onlineSearchExpanded = false
+                                    if (destination == AppDestination.ONLINE) {
+                                        onlineTab = 0
+                                    }
                                     selectedPlaylistId = null
                                     viewModel.setDestination(destination)
                                 },
@@ -686,7 +694,10 @@ private fun DestinationPagerContent(
                 onLogout = viewModel::onlineLogout,
                 onRefresh = viewModel::loadOnlineSongs,
                 onSearch = { viewModel.searchOnlineNow() },
-                onClearSearch = viewModel::clearOnlineSearch,
+                onClearSearch = {
+                    viewModel.clearOnlineSearch()
+                    onOnlineTabChange(0)
+                },
                 onPlaySong = viewModel::playOnlineSong,
                 onUpdateProfile = viewModel::onlineUpdateProfile,
                 onChangePassword = viewModel::onlineChangePassword,
