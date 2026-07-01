@@ -79,6 +79,7 @@ import com.nexora.player.data.online.OnlineSongDto
 import com.nexora.player.data.online.OnlineUiState
 import com.nexora.player.data.online.OnlineUploadProgress
 import com.nexora.player.data.online.OnlineUserSession
+import com.nexora.player.ui.components.MediaArtwork
 import com.nexora.player.ui.components.formatDuration
 
 @Composable
@@ -728,12 +729,11 @@ private fun UploadableLocalSongRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(checked = selected, onCheckedChange = { onToggle() }, enabled = enabled)
-            Box(
-                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.LibraryMusic, contentDescription = null)
-            }
+            MediaArtwork(
+                item = item,
+                modifier = Modifier.size(54.dp),
+                cornerRadius = 16.dp
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
                 Text(

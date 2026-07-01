@@ -677,7 +677,7 @@ Si quieres un reproductor completo, ligero y con estilo, prueba Nexora Player.
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Restaurando sesión online…</string>
     <string name="online_auth_title">Nexora Online</string>
-    <string name="online_auth_subtitle">Inicia sesión para reproducir y subir música.</string>
+    <string name="online_auth_subtitle">Inicia sesión para reproducir y subir música desde tu API de Nexora Player.</string>
     <string name="online_login">Iniciar sesión</string>
     <string name="online_create_account">Crear cuenta</string>
     <string name="online_email">Correo electrónico</string>
@@ -692,7 +692,7 @@ Si quieres un reproductor completo, ligero y con estilo, prueba Nexora Player.
     <string name="online_tab_account">Mi cuenta</string>
     <string name="online_tab_upload">Subir</string>
     <string name="online_home_title">Biblioteca online</string>
-    <string name="online_home_subtitle">Canciones activas.</string>
+    <string name="online_home_subtitle">Canciones activas y aprobadas desde tu API de Nexora Player.</string>
     <string name="online_empty_home">El servidor no devolvió canciones online.</string>
     <string name="online_search_hint">Buscar título, artista, álbum o género</string>
     <string name="online_search_action">Buscar</string>

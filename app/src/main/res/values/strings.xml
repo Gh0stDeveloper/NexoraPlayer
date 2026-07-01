@@ -677,7 +677,7 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Restoring online session…</string>
     <string name="online_auth_title">Nexora Online</string>
-    <string name="online_auth_subtitle">Sign in to stream and upload music.</string>
+    <string name="online_auth_subtitle">Sign in to stream and upload music from your Nexora Player API.</string>
     <string name="online_login">Sign in</string>
     <string name="online_create_account">Create account</string>
     <string name="online_email">Email</string>
