@@ -49,8 +49,8 @@ class NexoraOnlineApiClient(private val context: Context) {
         if (!isExpectedCallback) return null
 
         val params = parseUriCallbackParams(uri)
-        val error = params["error_description"] ?: params["error"]
-        if (!error.isNullOrBlank()) throw OnlineApiException(error)
+        val callbackError = callbackAuthErrorMessage(params)
+        if (!callbackError.isNullOrBlank()) throw OnlineApiException(callbackError)
 
         val accessToken = params["access_token"].orEmpty()
         if (accessToken.isBlank()) throw OnlineApiException(context.getString(R.string.online_error_google_callback))
@@ -91,8 +91,9 @@ class NexoraOnlineApiClient(private val context: Context) {
             .put("data", JSONObject().put("username", username.trim()))
             .toString()
             .toByteArray()
+        val redirect = URLEncoder.encode(googleRedirectUrl, "UTF-8")
         val json = requestJson(
-            url = "$supabaseUrl/auth/v1/signup",
+            url = "$supabaseUrl/auth/v1/signup?redirect_to=$redirect",
             method = "POST",
             body = body,
             extraHeaders = supabaseHeaders(json = true),
@@ -276,17 +277,58 @@ class NexoraOnlineApiClient(private val context: Context) {
             .orEmpty()
         val json = runCatching { JSONObject(response) }.getOrElse { JSONObject().put("message", response) }
         if (code !in 200..299) {
-            val error = json.optJSONObject("error")
-            val message = error?.optString("message")?.takeIf { it.isNotBlank() }
-                ?: json.optString("message").takeIf { it.isNotBlank() }
-                ?: context.getString(R.string.online_error_http, code)
-            throw OnlineApiException(message)
+            throw OnlineApiException(authErrorMessage(json, code))
         }
         if (requiresAuthEnvelope && json.has("success") && !json.optBoolean("success", false)) {
             val message = json.optJSONObject("error")?.optString("message") ?: context.getString(R.string.online_error_server_generic)
             throw OnlineApiException(message)
         }
         return json
+    }
+
+
+    private fun authErrorMessage(json: JSONObject, httpCode: Int): String {
+        val error = json.optJSONObject("error")
+        val errorCode = error?.optString("code")?.takeIf { it.isNotBlank() }
+            ?: error?.optString("error_code")?.takeIf { it.isNotBlank() }
+            ?: json.optString("error_code").takeIf { it.isNotBlank() }
+            ?: json.optString("code").takeIf { it.isNotBlank() }
+        val message = error?.optString("message")?.takeIf { it.isNotBlank() }
+            ?: error?.optString("msg")?.takeIf { it.isNotBlank() }
+            ?: json.optString("msg").takeIf { it.isNotBlank() }
+            ?: json.optString("message").takeIf { it.isNotBlank() }
+            ?: json.optString("error_description").takeIf { it.isNotBlank() }
+            ?: json.optString("error").takeIf { it.isNotBlank() }
+        return friendlyAuthError(errorCode, message, httpCode)
+    }
+
+    private fun callbackAuthErrorMessage(params: Map<String, String>): String? {
+        val errorCode = params["error_code"] ?: params["code"]
+        val message = params["error_description"] ?: params["error"] ?: params["msg"]
+        if (errorCode.isNullOrBlank() && message.isNullOrBlank()) return null
+        return friendlyAuthError(errorCode, message, null)
+    }
+
+    private fun friendlyAuthError(errorCode: String?, message: String?, httpCode: Int?): String {
+        val normalizedCode = errorCode.orEmpty().trim().lowercase()
+        val normalizedMessage = message.orEmpty().trim()
+        val lowerMessage = normalizedMessage.lowercase()
+        return when {
+            normalizedCode == "signup_disabled" || lowerMessage.contains("signups not allowed") ->
+                "Supabase Auth tiene desactivada la creación de cuentas. Activa Signups en Supabase Authentication > Settings para permitir registro manual y Google Auth."
+            normalizedCode == "email_provider_disabled" ->
+                "El registro con correo y contraseña está desactivado en Supabase Auth. Activa Email provider para crear cuentas manualmente."
+            normalizedCode == "provider_disabled" || normalizedCode == "oauth_provider_not_supported" ->
+                "Google Auth está desactivado o mal configurado en Supabase. Activa el proveedor Google y revisa Client ID, Client Secret y Redirect URLs."
+            normalizedCode == "email_exists" || normalizedCode == "user_already_exists" ->
+                "Ese correo ya está registrado. Inicia sesión o usa recuperación de contraseña."
+            normalizedCode == "weak_password" ->
+                "La contraseña no cumple la seguridad mínima configurada en Supabase. Usa una contraseña más larga y segura."
+            normalizedCode == "validation_failed" && normalizedMessage.isNotBlank() -> normalizedMessage
+            normalizedMessage.isNotBlank() -> normalizedMessage
+            httpCode != null -> context.getString(R.string.online_error_http, httpCode)
+            else -> context.getString(R.string.online_error_server_generic)
+        }
     }
 
     private fun requestMultipartJson(
@@ -336,11 +378,7 @@ class NexoraOnlineApiClient(private val context: Context) {
             .orEmpty()
         val json = runCatching { JSONObject(response) }.getOrElse { JSONObject().put("message", response) }
         if (code !in 200..299) {
-            val error = json.optJSONObject("error")
-            val message = error?.optString("message")?.takeIf { it.isNotBlank() }
-                ?: json.optString("message").takeIf { it.isNotBlank() }
-                ?: context.getString(R.string.online_error_http, code)
-            throw OnlineApiException(message)
+            throw OnlineApiException(authErrorMessage(json, code))
         }
         if (json.has("success") && !json.optBoolean("success", false)) {
             val message = json.optJSONObject("error")?.optString("message") ?: context.getString(R.string.online_error_server_generic)
