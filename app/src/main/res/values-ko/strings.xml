@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -47,7 +48,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
+    <string name="results_empty">No matches for "%1$s"</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -648,7 +649,6 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
-
     <string name="nav_online">온라인</string>
     <string name="online_restoring_session">온라인 세션 복원 중…</string>
     <string name="online_auth_title">Nexora Online</string>
@@ -666,8 +666,8 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_tab_search">검색</string>
     <string name="online_tab_account">프로필</string>
     <string name="online_tab_upload">업로드</string>
-    <string name="online_home_title">온라인 라이브러리</string>
-    <string name="online_home_subtitle">Nexora Player API의 활성화되고 승인된 곡입니다.</string>
+    <string name="online_home_title">Nexora 온라인</string>
+    <string name="online_home_subtitle">안녕하세요, %1$s. Nexora 서버의 승인된 음악을 찾아보세요.</string>
     <string name="online_empty_home">서버에서 온라인 곡을 반환하지 않았습니다.</string>
     <string name="online_search_hint">제목, 아티스트, 앨범 또는 장르 검색</string>
     <string name="online_search_action">검색</string>
@@ -738,4 +738,19 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_email_password_note">이메일 로그인에 사용하는 비밀번호를 변경합니다.</string>
     <string name="online_error_google_callback">Google 로그인을 완료할 수 없습니다.</string>
     <string name="online_error_google_login_unavailable">현재 Google 로그인을 사용할 수 없습니다.</string>
+    <string name="online_home_popular_title">지금 인기</string>
+    <string name="online_home_recommendations_title">추천</string>
+    <string name="online_trending_searches">인기 검색어</string>
+    <string name="online_favorites_title">즐겨찾기</string>
+    <string name="online_empty_favorites">온라인 즐겨찾기가 여기에 표시됩니다.</string>
+    <string name="online_empty_section">아직 콘텐츠가 없습니다.</string>
+    <string name="online_playlists_title">플레이리스트</string>
+    <string name="online_empty_playlists">온라인 플레이리스트가 여기에 표시됩니다.</string>
+    <string name="online_playlist_private">비공개 플레이리스트</string>
+    <string name="online_profile_bio_label">소개</string>
+    <string name="online_current_password">현재 비밀번호</string>
+    <string name="online_current_password_required">현재 비밀번호를 입력하세요.</string>
+    <string name="online_password_complexity">소문자, 대문자, 숫자, 기호를 사용하세요. 최소 6자.</string>
+    <string name="online_set_password">비밀번호 저장</string>
+    <string name="online_health_ok">서버 온라인</string>
 </resources>

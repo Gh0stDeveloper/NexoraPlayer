@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
@@ -77,6 +79,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.nexora.player.R
 import com.nexora.player.data.model.MediaEntry
+import com.nexora.player.data.online.OnlinePlaylistDto
+import com.nexora.player.data.online.OnlineProfileUpdateRequest
 import com.nexora.player.data.online.OnlineSongDto
 import com.nexora.player.data.online.OnlineUiState
 import com.nexora.player.data.online.OnlineUploadProgress
@@ -104,8 +108,8 @@ fun OnlineScreen(
     onSearch: () -> Unit,
     onClearSearch: () -> Unit,
     onPlaySong: (OnlineSongDto) -> Unit,
-    onUpdateProfile: (String) -> Unit,
-    onChangePassword: (String) -> Unit,
+    onUpdateProfile: (OnlineProfileUpdateRequest) -> Unit,
+    onChangePassword: (String?, String) -> Unit,
     onToggleUploadSelection: (MediaEntry) -> Unit,
     onClearUploadSelection: () -> Unit,
     onUploadSelected: () -> Unit
@@ -197,7 +201,8 @@ private fun OnlineAuthContent(
     val passwordsMatch = password == confirmPassword
     val emailLooksValid = cleanEmail.contains("@") && cleanEmail.substringAfter("@", "").contains(".")
     val canLogin = emailLooksValid && password.isNotBlank()
-    val canRegister = cleanUsername.length >= 3 && emailLooksValid && password.length >= 6 && confirmPassword.isNotBlank() && passwordsMatch
+    val passwordLooksStrong = password.isStrongOnlinePassword()
+    val canRegister = cleanUsername.length >= 3 && emailLooksValid && passwordLooksStrong && confirmPassword.isNotBlank() && passwordsMatch
     val canSubmit = !loading && if (registerMode) canRegister else canLogin
 
     LazyColumn(
@@ -275,8 +280,8 @@ private fun OnlineAuthContent(
                             imeAction = ImeAction.Done,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        if (password.isNotBlank() && password.length < 6) {
-                            InlineError(text = stringResource(R.string.online_password_minimum))
+                        if (password.isNotBlank() && !passwordLooksStrong) {
+                            InlineError(text = stringResource(R.string.online_password_complexity))
                         }
                         if (confirmPassword.isNotBlank() && !passwordsMatch) {
                             InlineError(text = stringResource(R.string.online_passwords_do_not_match))
@@ -414,33 +419,178 @@ private fun OnlineHomeContent(
 ) {
     LazyColumn(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            OnlineStatsRow(
-                songsCount = state.songs.size,
-                resultsCount = state.searchResults.size
-            )
-        }
-        item {
-            SectionTitleRow(
-                title = stringResource(R.string.online_home_recent_title),
-                action = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.action_refresh))
-                    }
-                }
-            )
+            OnlineHomeHero(state = state, onRefresh = onRefresh)
         }
         if (state.loadingSongs) {
             item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
         }
         state.songsError?.let { item { ErrorCard(message = it, onRetry = onRefresh) } }
+        if (state.home.trendingSearches.isNotEmpty()) {
+            item { TrendingSearchesRow(values = state.home.trendingSearches) }
+        }
+        item {
+            OnlineHorizontalSongSection(
+                title = stringResource(R.string.online_home_popular_title),
+                songs = state.home.popular,
+                onPlaySong = onPlaySong
+            )
+        }
+        item {
+            OnlineHorizontalSongSection(
+                title = stringResource(R.string.online_home_recent_title),
+                songs = state.home.recentlyAdded.ifEmpty { state.songs },
+                onPlaySong = onPlaySong
+            )
+        }
+        item {
+            OnlineHorizontalSongSection(
+                title = stringResource(R.string.online_home_recommendations_title),
+                songs = state.home.recommendations,
+                onPlaySong = onPlaySong
+            )
+        }
+        item {
+            OnlineHorizontalSongSection(
+                title = stringResource(R.string.online_favorites_title),
+                songs = state.favorites,
+                onPlaySong = onPlaySong,
+                emptyText = stringResource(R.string.online_empty_favorites)
+            )
+        }
+        item {
+            OnlinePlaylistPreview(playlists = state.playlists)
+        }
         if (!state.loadingSongs && state.songs.isEmpty() && state.songsError == null) {
             item { EmptyOnlineCard(text = stringResource(R.string.online_empty_home)) }
         }
-        items(state.songs, key = { it.id }) { song ->
-            OnlineSongRow(song = song, onClick = { onPlaySong(song) })
+    }
+}
+
+@Composable
+private fun OnlineHomeHero(state: OnlineUiState, onRefresh: () -> Unit) {
+    ElevatedCard(
+        shape = RoundedCornerShape(30.dp),
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(54.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(stringResource(R.string.online_home_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.online_home_subtitle, state.session?.profileName ?: "Nexora"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.action_refresh))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrendingSearchesRow(values: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.online_trending_searches), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(values.take(10)) { value ->
+                AssistChip(onClick = {}, label = { Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnlineHorizontalSongSection(
+    title: String,
+    songs: List<OnlineSongDto>,
+    onPlaySong: (OnlineSongDto) -> Unit,
+    emptyText: String = stringResource(R.string.online_empty_section)
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        if (songs.isEmpty()) {
+            EmptyOnlineCard(text = emptyText)
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(songs.take(12), key = { it.id }) { song ->
+                    OnlineSongCompactCard(song = song, onClick = { onPlaySong(song) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnlinePlaylistPreview(playlists: List<OnlinePlaylistDto>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.online_playlists_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        if (playlists.isEmpty()) {
+            EmptyOnlineCard(text = stringResource(R.string.online_empty_playlists))
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(playlists.take(10), key = { it.id }) { playlist ->
+                    ElevatedCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.size(width = 170.dp, height = 96.dp)) {
+                        Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                            Icon(if (playlist.isFavorites) Icons.Filled.Favorite else Icons.Filled.LibraryMusic, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Column {
+                                Text(playlist.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    playlist.description ?: stringResource(R.string.online_playlist_private),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnlineSongCompactCard(song: OnlineSongDto, onClick: () -> Unit) {
+    ElevatedCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.size(width = 156.dp, height = 214.dp).clickable(onClick = onClick)) {
+        Column(modifier = Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(20.dp)).background(
+                    Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.30f), MaterialTheme.colorScheme.surfaceVariant))
+                ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!song.coverUrl.isNullOrBlank()) {
+                    AsyncImage(model = song.coverUrl, contentDescription = song.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    Icon(Icons.Filled.LibraryMusic, contentDescription = null, modifier = Modifier.size(34.dp))
+                }
+            }
+            Text(song.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                song.artist ?: stringResource(R.string.online_unknown_artist),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -517,8 +667,8 @@ private fun OnlineSearchContent(
 private fun OnlineAccountContent(
     state: OnlineUiState,
     onLogout: () -> Unit,
-    onUpdateProfile: (String) -> Unit,
-    onChangePassword: (String) -> Unit,
+    onUpdateProfile: (OnlineProfileUpdateRequest) -> Unit,
+    onChangePassword: (String?, String) -> Unit,
     onOpenUpload: () -> Unit,
     onOpenHome: () -> Unit,
     modifier: Modifier
@@ -610,10 +760,16 @@ private fun ProfileActionsCard(onOpenUpload: () -> Unit, onOpenHome: () -> Unit)
 }
 
 @Composable
-private fun ProfileEditorCard(state: OnlineUiState, onUpdateProfile: (String) -> Unit) {
+private fun ProfileEditorCard(state: OnlineUiState, onUpdateProfile: (OnlineProfileUpdateRequest) -> Unit) {
     val session = state.session
     var displayName by rememberSaveable(session?.userId, session?.displayName, session?.username) {
         mutableStateOf(session?.profileName.orEmpty())
+    }
+    var username by rememberSaveable(session?.userId, session?.username) {
+        mutableStateOf(session?.username ?: session?.email?.substringBefore('@').orEmpty())
+    }
+    var bio by rememberSaveable(session?.userId, session?.bio) {
+        mutableStateOf(session?.bio.orEmpty())
     }
     ElevatedCard(shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -632,11 +788,27 @@ private fun ProfileEditorCard(state: OnlineUiState, onUpdateProfile: (String) ->
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text(stringResource(R.string.online_username)) },
+                leadingIcon = { Icon(Icons.Filled.AccountCircle, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = bio,
+                onValueChange = { bio = it },
+                label = { Text(stringResource(R.string.online_profile_bio_label)) },
+                minLines = 2,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth()
+            )
             state.profileMessage?.let { SuccessCard(message = it) }
             state.profileError?.let { ErrorCard(message = it) }
             Button(
-                onClick = { onUpdateProfile(displayName) },
-                enabled = !state.profileSaving && displayName.trim().length >= 2,
+                onClick = { onUpdateProfile(OnlineProfileUpdateRequest(username = username, displayName = displayName, bio = bio)) },
+                enabled = !state.profileSaving && displayName.trim().length >= 2 && username.trim().length >= 3,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(18.dp)
             ) {
@@ -651,14 +823,19 @@ private fun ProfileEditorCard(state: OnlineUiState, onUpdateProfile: (String) ->
 }
 
 @Composable
-private fun PasswordSettingsCard(state: OnlineUiState, onChangePassword: (String) -> Unit) {
-    val isGoogleAccount = state.session.providerLabel() == stringResource(R.string.online_provider_google)
+private fun PasswordSettingsCard(state: OnlineUiState, onChangePassword: (String?, String) -> Unit) {
+    val session = state.session
+    val isGoogleWithoutPassword = session?.provider.orEmpty().contains("google", ignoreCase = true) && session?.hasPassword != true
+    var currentPassword by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
+    var currentVisible by rememberSaveable { mutableStateOf(false) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
     val matches = password == confirmPassword
-    val canSave = !state.passwordSaving && password.length >= 6 && confirmPassword.isNotBlank() && matches
+    val strong = password.isStrongOnlinePassword()
+    val currentOk = isGoogleWithoutPassword || currentPassword.isNotBlank()
+    val canSave = !state.passwordSaving && strong && currentOk && confirmPassword.isNotBlank() && matches
 
     ElevatedCard(shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -667,11 +844,22 @@ private fun PasswordSettingsCard(state: OnlineUiState, onChangePassword: (String
                 Column(modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.online_password_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        text = if (isGoogleAccount) stringResource(R.string.online_google_password_note) else stringResource(R.string.online_email_password_note),
+                        text = if (isGoogleWithoutPassword) stringResource(R.string.online_google_password_note) else stringResource(R.string.online_email_password_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            if (!isGoogleWithoutPassword) {
+                PasswordField(
+                    value = currentPassword,
+                    onValueChange = { currentPassword = it },
+                    label = stringResource(R.string.online_current_password),
+                    visible = currentVisible,
+                    onVisibleChange = { currentVisible = !currentVisible },
+                    imeAction = ImeAction.Next,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
             PasswordField(
                 value = password,
@@ -691,12 +879,12 @@ private fun PasswordSettingsCard(state: OnlineUiState, onChangePassword: (String
                 imeAction = ImeAction.Done,
                 modifier = Modifier.fillMaxWidth()
             )
-            if (password.isNotBlank() && password.length < 6) InlineError(text = stringResource(R.string.online_password_minimum))
+            if (password.isNotBlank() && !strong) InlineError(text = stringResource(R.string.online_password_complexity))
             if (confirmPassword.isNotBlank() && !matches) InlineError(text = stringResource(R.string.online_passwords_do_not_match))
             state.passwordMessage?.let { SuccessCard(message = it) }
             state.passwordError?.let { ErrorCard(message = it) }
             Button(
-                onClick = { onChangePassword(password) },
+                onClick = { onChangePassword(currentPassword.takeIf { it.isNotBlank() }, password) },
                 enabled = canSave,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(18.dp)
@@ -704,7 +892,7 @@ private fun PasswordSettingsCard(state: OnlineUiState, onChangePassword: (String
                 if (state.passwordSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) else {
                     Icon(Icons.Filled.Key, contentDescription = null)
                     Spacer(Modifier.size(8.dp))
-                    Text(stringResource(R.string.online_change_password))
+                    Text(if (isGoogleWithoutPassword) stringResource(R.string.online_set_password) else stringResource(R.string.online_change_password))
                 }
             }
         }
@@ -889,6 +1077,16 @@ private fun UploadableLocalSongRow(
         }
         HorizontalDivider(thickness = 0.4.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     }
+}
+
+
+private fun String.isStrongOnlinePassword(): Boolean {
+    if (length < 6) return false
+    val hasLower = any { it.isLowerCase() }
+    val hasUpper = any { it.isUpperCase() }
+    val hasDigit = any { it.isDigit() }
+    val hasSymbol = any { !it.isLetterOrDigit() }
+    return hasLower && hasUpper && hasDigit && hasSymbol
 }
 
 @Composable

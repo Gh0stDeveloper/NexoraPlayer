@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -47,7 +48,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
+    <string name="results_empty">No matches for "%1$s"</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -648,7 +649,6 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
-
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Restoring online session…</string>
     <string name="online_auth_title">Nexora Online</string>
@@ -666,8 +666,8 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_tab_search">Search</string>
     <string name="online_tab_account">Profile</string>
     <string name="online_tab_upload">Upload</string>
-    <string name="online_home_title">Online library</string>
-    <string name="online_home_subtitle">Approved active songs from your Nexora Player API.</string>
+    <string name="online_home_title">Nexora Online</string>
+    <string name="online_home_subtitle">Welcome, %1$s. Discover approved music from your Nexora server.</string>
     <string name="online_empty_home">No online songs were returned by the server.</string>
     <string name="online_search_hint">Search title, artist, album or genre</string>
     <string name="online_search_action">Search</string>
@@ -738,4 +738,19 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="media_badge_online">Online</string>
     <string name="media_badge_audio">Audio</string>
     <string name="media_badge_video">Video</string>
+    <string name="online_home_popular_title">Popular now</string>
+    <string name="online_home_recommendations_title">For you</string>
+    <string name="online_trending_searches">Trending searches</string>
+    <string name="online_favorites_title">Favorites</string>
+    <string name="online_empty_favorites">Your online favorites will appear here.</string>
+    <string name="online_empty_section">Nothing here yet.</string>
+    <string name="online_playlists_title">Playlists</string>
+    <string name="online_empty_playlists">Your online playlists will appear here.</string>
+    <string name="online_playlist_private">Private playlist</string>
+    <string name="online_profile_bio_label">Bio</string>
+    <string name="online_current_password">Current password</string>
+    <string name="online_current_password_required">Enter your current password.</string>
+    <string name="online_password_complexity">Use lowercase, uppercase, a number and a symbol. Minimum 6 characters.</string>
+    <string name="online_set_password">Set password</string>
+    <string name="online_health_ok">Server online</string>
 </resources>

@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -47,7 +48,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
+    <string name="results_empty">No matches for "%1$s"</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -648,7 +649,6 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
-
     <string name="nav_online">Онлайн</string>
     <string name="online_restoring_session">Восстановление онлайн-сессии…</string>
     <string name="online_auth_title">Nexora Online</string>
@@ -666,8 +666,8 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_tab_search">Поиск</string>
     <string name="online_tab_account">Профиль</string>
     <string name="online_tab_upload">Загрузка</string>
-    <string name="online_home_title">Онлайн-библиотека</string>
-    <string name="online_home_subtitle">Активные и одобренные треки из вашей API Nexora Player.</string>
+    <string name="online_home_title">Nexora Онлайн</string>
+    <string name="online_home_subtitle">Здравствуйте, %1$s. Откройте одобренную музыку с вашего сервера Nexora.</string>
     <string name="online_empty_home">Сервер не вернул онлайн-треки.</string>
     <string name="online_search_hint">Поиск по названию, исполнителю, альбому или жанру</string>
     <string name="online_search_action">Поиск</string>
@@ -738,4 +738,19 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_email_password_note">Измените пароль для входа по почте.</string>
     <string name="online_error_google_callback">Не удалось завершить вход через Google.</string>
     <string name="online_error_google_login_unavailable">Вход через Google сейчас недоступен.</string>
+    <string name="online_home_popular_title">Популярно сейчас</string>
+    <string name="online_home_recommendations_title">Для вас</string>
+    <string name="online_trending_searches">Популярные поиски</string>
+    <string name="online_favorites_title">Избранное</string>
+    <string name="online_empty_favorites">Ваше онлайн-избранное появится здесь.</string>
+    <string name="online_empty_section">Здесь пока нет контента.</string>
+    <string name="online_playlists_title">Плейлисты</string>
+    <string name="online_empty_playlists">Ваши онлайн-плейлисты появятся здесь.</string>
+    <string name="online_playlist_private">Приватный плейлист</string>
+    <string name="online_profile_bio_label">О себе</string>
+    <string name="online_current_password">Текущий пароль</string>
+    <string name="online_current_password_required">Введите текущий пароль.</string>
+    <string name="online_password_complexity">Используйте строчные, заглавные буквы, цифру и символ. Минимум 6 символов.</string>
+    <string name="online_set_password">Сохранить пароль</string>
+    <string name="online_health_ok">Сервер онлайн</string>
 </resources>

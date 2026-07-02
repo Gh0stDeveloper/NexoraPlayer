@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -47,7 +48,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
+    <string name="results_empty">No matches for "%1$s"</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -648,7 +649,6 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
-
     <string name="nav_online">En ligne</string>
     <string name="online_restoring_session">Restauration de la session en ligne…</string>
     <string name="online_auth_title">Nexora Online</string>
@@ -666,8 +666,8 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_tab_search">Recherche</string>
     <string name="online_tab_account">Profil</string>
     <string name="online_tab_upload">Envoi</string>
-    <string name="online_home_title">Bibliothèque en ligne</string>
-    <string name="online_home_subtitle">Morceaux actifs et approuvés depuis votre API Nexora Player.</string>
+    <string name="online_home_title">Nexora Online</string>
+    <string name="online_home_subtitle">Bonjour, %1$s. Découvrez la musique approuvée depuis votre serveur Nexora.</string>
     <string name="online_empty_home">Le serveur n’a renvoyé aucun morceau en ligne.</string>
     <string name="online_search_hint">Rechercher titre, artiste, album ou genre</string>
     <string name="online_search_action">Rechercher</string>
@@ -738,4 +738,19 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_email_password_note">Modifiez le mot de passe utilisé pour la connexion par e-mail.</string>
     <string name="online_error_google_callback">Impossible de terminer la connexion avec Google.</string>
     <string name="online_error_google_login_unavailable">La connexion avec Google n’est pas disponible pour le moment.</string>
+    <string name="online_home_popular_title">Populaire maintenant</string>
+    <string name="online_home_recommendations_title">Pour vous</string>
+    <string name="online_trending_searches">Recherches tendance</string>
+    <string name="online_favorites_title">Favoris</string>
+    <string name="online_empty_favorites">Vos favoris en ligne apparaîtront ici.</string>
+    <string name="online_empty_section">Aucun contenu pour le moment.</string>
+    <string name="online_playlists_title">Playlists</string>
+    <string name="online_empty_playlists">Vos playlists en ligne apparaîtront ici.</string>
+    <string name="online_playlist_private">Playlist privée</string>
+    <string name="online_profile_bio_label">Bio</string>
+    <string name="online_current_password">Mot de passe actuel</string>
+    <string name="online_current_password_required">Saisissez votre mot de passe actuel.</string>
+    <string name="online_password_complexity">Utilisez minuscules, majuscules, un chiffre et un symbole. Minimum 6 caractères.</string>
+    <string name="online_set_password">Définir le mot de passe</string>
+    <string name="online_health_ok">Serveur en ligne</string>
 </resources>

@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -47,7 +48,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
+    <string name="results_empty">No matches for "%1$s"</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -673,7 +674,6 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="action_ok">OK</string>
     <string name="update_status_dialog_title">Update status</string>
     <string name="release_authorize_install">Activate permission</string>
-
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Restoring online session…</string>
     <string name="online_auth_title">Nexora Online</string>
@@ -691,8 +691,8 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_tab_search">Search</string>
     <string name="online_tab_account">Profile</string>
     <string name="online_tab_upload">Upload</string>
-    <string name="online_home_title">Online library</string>
-    <string name="online_home_subtitle">Approved active songs from your Nexora Player API.</string>
+    <string name="online_home_title">Nexora Online</string>
+    <string name="online_home_subtitle">Hola, %1$s. Descubre música aprobada desde tu servidor Nexora.</string>
     <string name="online_empty_home">No online songs were returned by the server.</string>
     <string name="online_search_hint">Search title, artist, album or genre</string>
     <string name="online_search_action">Search</string>
@@ -763,4 +763,19 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_password_change_error">Could not update the password.</string>
     <string name="online_google_password_note">This Google account has no manual password by default. Save one here if you also want to sign in with email.</string>
     <string name="online_email_password_note">Change the password used for email sign-in.</string>
+    <string name="online_home_popular_title">Populares ahora</string>
+    <string name="online_home_recommendations_title">Para ti</string>
+    <string name="online_trending_searches">Búsquedas en tendencia</string>
+    <string name="online_favorites_title">Favoritos</string>
+    <string name="online_empty_favorites">Tus favoritos online aparecerán aquí.</string>
+    <string name="online_empty_section">Aún no hay contenido aquí.</string>
+    <string name="online_playlists_title">Playlists</string>
+    <string name="online_empty_playlists">Tus playlists online aparecerán aquí.</string>
+    <string name="online_playlist_private">Playlist privada</string>
+    <string name="online_profile_bio_label">Biografía</string>
+    <string name="online_current_password">Contraseña actual</string>
+    <string name="online_current_password_required">Escribe tu contraseña actual.</string>
+    <string name="online_password_complexity">Usa minúsculas, mayúsculas, un número y un símbolo. Mínimo 6 caracteres.</string>
+    <string name="online_set_password">Guardar contraseña</string>
+    <string name="online_health_ok">Servidor online</string>
 </resources>

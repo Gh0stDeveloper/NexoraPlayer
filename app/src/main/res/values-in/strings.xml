@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -47,7 +48,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
+    <string name="results_empty">No matches for "%1$s"</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -648,7 +649,6 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
-
     <string name="nav_online">Online</string>
     <string name="online_restoring_session">Memulihkan sesi online…</string>
     <string name="online_auth_title">Nexora Online</string>
@@ -666,8 +666,8 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_tab_search">Cari</string>
     <string name="online_tab_account">Profil</string>
     <string name="online_tab_upload">Unggah</string>
-    <string name="online_home_title">Pustaka online</string>
-    <string name="online_home_subtitle">Lagu aktif dan disetujui dari API Nexora Player Anda.</string>
+    <string name="online_home_title">Nexora Online</string>
+    <string name="online_home_subtitle">Halo, %1$s. Temukan musik yang disetujui dari server Nexora Anda.</string>
     <string name="online_empty_home">Server tidak mengirim lagu online.</string>
     <string name="online_search_hint">Cari judul, artis, album, atau genre</string>
     <string name="online_search_action">Cari</string>
@@ -738,4 +738,19 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_email_password_note">Ubah kata sandi untuk masuk dengan email.</string>
     <string name="online_error_google_callback">Tidak dapat menyelesaikan masuk dengan Google.</string>
     <string name="online_error_google_login_unavailable">Masuk dengan Google tidak tersedia saat ini.</string>
+    <string name="online_home_popular_title">Populer sekarang</string>
+    <string name="online_home_recommendations_title">Untuk Anda</string>
+    <string name="online_trending_searches">Pencarian tren</string>
+    <string name="online_favorites_title">Favorit</string>
+    <string name="online_empty_favorites">Favorit online Anda akan muncul di sini.</string>
+    <string name="online_empty_section">Belum ada konten di sini.</string>
+    <string name="online_playlists_title">Playlist</string>
+    <string name="online_empty_playlists">Playlist online Anda akan muncul di sini.</string>
+    <string name="online_playlist_private">Playlist pribadi</string>
+    <string name="online_profile_bio_label">Bio</string>
+    <string name="online_current_password">Kata sandi saat ini</string>
+    <string name="online_current_password_required">Masukkan kata sandi saat ini.</string>
+    <string name="online_password_complexity">Gunakan huruf kecil, huruf besar, angka, dan simbol. Minimal 6 karakter.</string>
+    <string name="online_set_password">Simpan kata sandi</string>
+    <string name="online_health_ok">Server online</string>
 </resources>

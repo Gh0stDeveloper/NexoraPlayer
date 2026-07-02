@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -47,7 +48,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
+    <string name="results_empty">No matches for "%1$s"</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -648,7 +649,6 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
-
     <string name="nav_online">ऑनलाइन</string>
     <string name="online_restoring_session">ऑनलाइन सत्र पुनर्स्थापित हो रहा है…</string>
     <string name="online_auth_title">Nexora Online</string>
@@ -666,8 +666,8 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_tab_search">खोज</string>
     <string name="online_tab_account">प्रोफ़ाइल</string>
     <string name="online_tab_upload">अपलोड</string>
-    <string name="online_home_title">ऑनलाइन लाइब्रेरी</string>
-    <string name="online_home_subtitle">आपकी Nexora Player API से सक्रिय और स्वीकृत गाने।</string>
+    <string name="online_home_title">Nexora ऑनलाइन</string>
+    <string name="online_home_subtitle">नमस्ते, %1$s। अपने Nexora सर्वर से स्वीकृत संगीत खोजें।</string>
     <string name="online_empty_home">सर्वर से ऑनलाइन गाने नहीं मिले।</string>
     <string name="online_search_hint">शीर्षक, कलाकार, एल्बम या शैली खोजें</string>
     <string name="online_search_action">खोजें</string>
@@ -738,4 +738,19 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_email_password_note">ईमेल लॉगिन के लिए पासवर्ड बदलें।</string>
     <string name="online_error_google_callback">Google साइन इन पूरा नहीं हो सका।</string>
     <string name="online_error_google_login_unavailable">Google साइन इन अभी उपलब्ध नहीं है।</string>
+    <string name="online_home_popular_title">अभी लोकप्रिय</string>
+    <string name="online_home_recommendations_title">आपके लिए</string>
+    <string name="online_trending_searches">ट्रेंडिंग खोजें</string>
+    <string name="online_favorites_title">पसंदीदा</string>
+    <string name="online_empty_favorites">आपके ऑनलाइन पसंदीदा यहाँ दिखेंगे।</string>
+    <string name="online_empty_section">यहाँ अभी कुछ नहीं है।</string>
+    <string name="online_playlists_title">प्लेलिस्ट</string>
+    <string name="online_empty_playlists">आपकी ऑनलाइन प्लेलिस्ट यहाँ दिखेंगी।</string>
+    <string name="online_playlist_private">निजी प्लेलिस्ट</string>
+    <string name="online_profile_bio_label">बायो</string>
+    <string name="online_current_password">वर्तमान पासवर्ड</string>
+    <string name="online_current_password_required">अपना वर्तमान पासवर्ड दर्ज करें।</string>
+    <string name="online_password_complexity">छोटे अक्षर, बड़े अक्षर, संख्या और प्रतीक का उपयोग करें। न्यूनतम 6 अक्षर।</string>
+    <string name="online_set_password">पासवर्ड सहेजें</string>
+    <string name="online_health_ok">सर्वर ऑनलाइन</string>
 </resources>

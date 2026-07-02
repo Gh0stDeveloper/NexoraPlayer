@@ -327,7 +327,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleDeepLink(intent: Intent?) {
-        viewModel.handleOnlineAuthCallback(intent?.data)
+        val uri = intent?.data
+        viewModel.handleOnlineAuthCallback(uri)
+        viewModel.handleOnlineSongDeepLink(uri)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

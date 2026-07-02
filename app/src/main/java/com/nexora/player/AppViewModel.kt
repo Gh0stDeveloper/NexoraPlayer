@@ -31,6 +31,7 @@ import com.nexora.player.data.preferences.AppPreferences
 import com.nexora.player.data.preferences.PreferencesRepository
 import com.nexora.player.data.online.NexoraOnlineApiClient
 import com.nexora.player.data.online.NexoraOnlineSessionStore
+import com.nexora.player.data.online.OnlineProfileUpdateRequest
 import com.nexora.player.data.online.OnlineSongDto
 import com.nexora.player.data.online.OnlineUiState
 import com.nexora.player.data.online.OnlineUploadProgress
@@ -625,6 +626,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onlineRegister(email: String, password: String, username: String) {
+        if (!isStrongOnlinePassword(password)) {
+            _uiState.value = _uiState.value.copy(
+                online = _uiState.value.online.copy(authError = context.getString(R.string.online_password_complexity))
+            )
+            return
+        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(online = _uiState.value.online.copy(authLoading = true, authError = null))
             val result = runCatching { onlineApiClient.register(email, password, username) }
@@ -649,10 +656,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun onlineUpdateProfile(displayName: String) {
+    fun onlineUpdateProfile(request: OnlineProfileUpdateRequest) {
         val session = _uiState.value.online.session ?: return
-        val cleanName = displayName.trim()
-        if (cleanName.length < 2) {
+        if (request.displayName.trim().length < 2 || request.username.trim().length < 3) {
             _uiState.value = _uiState.value.copy(
                 online = _uiState.value.online.copy(
                     profileError = context.getString(R.string.online_profile_name_required),
@@ -665,7 +671,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = _uiState.value.copy(
                 online = _uiState.value.online.copy(profileSaving = true, profileError = null, profileMessage = null)
             )
-            val result = runCatching { onlineApiClient.updateProfile(session, cleanName) }
+            val result = runCatching { onlineApiClient.updateProfile(session, request) }
             result.onSuccess { updatedSession ->
                 onlineSessionStore.save(updatedSession)
                 _uiState.value = _uiState.value.copy(
@@ -688,12 +694,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun onlineChangePassword(newPassword: String) {
+    fun onlineChangePassword(currentPassword: String?, newPassword: String) {
         val session = _uiState.value.online.session ?: return
-        if (newPassword.length < 6) {
+        if (!isStrongOnlinePassword(newPassword)) {
             _uiState.value = _uiState.value.copy(
                 online = _uiState.value.online.copy(
-                    passwordError = context.getString(R.string.online_password_minimum),
+                    passwordError = context.getString(R.string.online_password_complexity),
+                    passwordMessage = null
+                )
+            )
+            return
+        }
+        val needsCurrent = !session.provider.orEmpty().contains("google", ignoreCase = true) || session.hasPassword == true
+        if (needsCurrent && currentPassword.orEmpty().isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                online = _uiState.value.online.copy(
+                    passwordError = context.getString(R.string.online_current_password_required),
                     passwordMessage = null
                 )
             )
@@ -703,10 +719,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = _uiState.value.copy(
                 online = _uiState.value.online.copy(passwordSaving = true, passwordError = null, passwordMessage = null)
             )
-            val result = runCatching { onlineApiClient.updatePassword(session, newPassword) }
+            val result = runCatching { onlineApiClient.changePassword(session, currentPassword, newPassword) }
             result.onSuccess {
+                val updatedSession = session.copy(hasPassword = true)
+                onlineSessionStore.save(updatedSession)
                 _uiState.value = _uiState.value.copy(
                     online = _uiState.value.online.copy(
+                        session = updatedSession,
                         passwordSaving = false,
                         passwordError = null,
                         passwordMessage = context.getString(R.string.online_password_changed)
@@ -722,6 +741,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+    }
+
+    private fun isStrongOnlinePassword(value: String): Boolean {
+        if (value.length < 6) return false
+        val hasLower = value.any { it.isLowerCase() }
+        val hasUpper = value.any { it.isUpperCase() }
+        val hasDigit = value.any { it.isDigit() }
+        val hasSymbol = value.any { !it.isLetterOrDigit() }
+        return hasLower && hasUpper && hasDigit && hasSymbol
     }
 
     fun onlineGoogleAuthUrl(): String {
@@ -766,6 +794,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun handleOnlineSongDeepLink(uri: Uri?) {
+        if (uri?.scheme != "nexoraplayer" || uri.host != "song") return
+        val songId = uri.pathSegments.firstOrNull().orEmpty().trim()
+        if (songId.isBlank()) return
+        _uiState.value = _uiState.value.copy(
+            selectedDestination = AppDestination.ONLINE,
+            preferences = _uiState.value.preferences.copy(onlineMusicSearchEnabled = true)
+        )
+        viewModelScope.launch {
+            preferencesRepository.setOnlineMusicSearchEnabled(true)
+            preferencesRepository.setLastDestination(AppDestination.ONLINE)
+            val session = _uiState.value.online.session ?: return@launch
+            runCatching { onlineApiClient.getSongDetail(session, songId) }
+                .onSuccess { song -> playOnlineSong(song) }
+        }
+    }
+
     fun onlineLogout() {
         onlineSessionStore.clear()
         PlayerEngine.clearHttpRequestHeaders()
@@ -778,24 +823,67 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val session = _uiState.value.online.session ?: return
         if (!_uiState.value.preferences.onlineMusicSearchEnabled) return
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(online = _uiState.value.online.copy(loadingSongs = true, songsError = null))
-            val result = runCatching { onlineApiClient.getSongs(session, limit = 30, offset = 0) }
-            result.onSuccess { response ->
+            _uiState.value = _uiState.value.copy(
+                online = _uiState.value.online.copy(
+                    loadingSongs = true,
+                    loadingFavorites = true,
+                    loadingPlaylists = true,
+                    songsError = null
+                )
+            )
+            val homeResult = runCatching { onlineApiClient.getCatalogHome(session) }
+            homeResult.onSuccess { home ->
                 _uiState.value = _uiState.value.copy(
                     online = _uiState.value.online.copy(
-                        songs = response.items,
+                        home = home,
+                        songs = home.combinedSongs,
                         loadingSongs = false,
                         songsError = null
                     )
                 )
             }.onFailure { throwable ->
-                _uiState.value = _uiState.value.copy(
-                    online = _uiState.value.online.copy(
-                        loadingSongs = false,
-                        songsError = throwable.message ?: getApplication<Application>().getString(R.string.online_error_load)
+                val fallback = runCatching { onlineApiClient.getSongs(session, limit = 30, offset = 0) }
+                fallback.onSuccess { response ->
+                    _uiState.value = _uiState.value.copy(
+                        online = _uiState.value.online.copy(
+                            songs = response.items,
+                            loadingSongs = false,
+                            songsError = null
+                        )
                     )
-                )
+                }.onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        online = _uiState.value.online.copy(
+                            loadingSongs = false,
+                            songsError = throwable.message ?: getApplication<Application>().getString(R.string.online_error_load)
+                        )
+                    )
+                }
             }
+
+            runCatching { onlineApiClient.getFavorites(session) }
+                .onSuccess { favorites ->
+                    _uiState.value = _uiState.value.copy(
+                        online = _uiState.value.online.copy(favorites = favorites, loadingFavorites = false)
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        online = _uiState.value.online.copy(loadingFavorites = false)
+                    )
+                }
+
+            runCatching { onlineApiClient.getPlaylists(session) }
+                .onSuccess { playlists ->
+                    _uiState.value = _uiState.value.copy(
+                        online = _uiState.value.online.copy(playlists = playlists, loadingPlaylists = false)
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        online = _uiState.value.online.copy(loadingPlaylists = false)
+                    )
+                }
         }
     }
 

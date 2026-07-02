@@ -20,7 +20,10 @@ class NexoraOnlineSessionStore(context: Context) {
                 displayName = json.optString("displayName").takeIf { it.isNotBlank() },
                 username = json.optString("username").takeIf { it.isNotBlank() },
                 avatarUrl = json.optString("avatarUrl").takeIf { it.isNotBlank() },
-                provider = json.optString("provider").takeIf { it.isNotBlank() }
+                provider = json.optString("provider").takeIf { it.isNotBlank() },
+                bio = json.optString("bio").takeIf { it.isNotBlank() },
+                phoneNumber = json.optString("phoneNumber").takeIf { it.isNotBlank() },
+                hasPassword = if (json.has("hasPassword")) json.optBoolean("hasPassword") else null
             ).takeIf { it.accessToken.isNotBlank() }
         }.getOrNull()
     }
@@ -36,6 +39,9 @@ class NexoraOnlineSessionStore(context: Context) {
             .put("username", session.username.orEmpty())
             .put("avatarUrl", session.avatarUrl.orEmpty())
             .put("provider", session.provider.orEmpty())
+            .put("bio", session.bio.orEmpty())
+            .put("phoneNumber", session.phoneNumber.orEmpty())
+            .put("hasPassword", session.hasPassword ?: JSONObject.NULL)
         prefs.edit().putString(KEY_SESSION, json.toString()).apply()
     }
 

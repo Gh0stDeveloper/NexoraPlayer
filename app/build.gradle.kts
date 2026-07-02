@@ -16,8 +16,8 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 8
-        versionName = "2.0.3"
-        val nexoraOnlineApiBaseUrl = System.getenv("NEXORA_ONLINE_API_BASE_URL") ?: "https://nexoraplayerapi.vercel.app"
+        versionName = "2.0.2"
+        val nexoraOnlineApiBaseUrl = System.getenv("NEXORA_ONLINE_API_BASE_URL") ?: "https://nexoraplayerapi.vercel.app/api/v1"
         val nexoraSupabaseUrl = System.getenv("NEXORA_SUPABASE_URL") ?: "https://rbzkczwifeqkzcoqwyjq.supabase.co"
         val nexoraSupabaseAnonKey = System.getenv("NEXORA_SUPABASE_ANON_KEY") ?: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJiemtjendpZmVxa3pjb3F3eWpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTY2NDQsImV4cCI6MjA5ODI5MjY0NH0.JYfLzRf25MMcj_MFqB5M1rIU0YeDGRQZtW8yKwWY2V8"
         val nexoraSupabaseGoogleRedirectUrl = System.getenv("NEXORA_SUPABASE_GOOGLE_REDIRECT_URL") ?: "nexoraplayer://auth/callback"

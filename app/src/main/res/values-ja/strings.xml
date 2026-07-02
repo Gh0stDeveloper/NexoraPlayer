@@ -1,3 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Nexora Player</string>
     <string name="app_tagline">Compact interface, local library, immersive playback.</string>
@@ -47,7 +48,7 @@
     <string name="queue_go_to">Go to</string>
     <string name="queue_remove">Remove</string>
     <string name="results_title">Search results</string>
-    <string name="results_empty">No matches for &quot;%1$s&quot;</string>
+    <string name="results_empty">No matches for "%1$s"</string>
     <string name="results_count">%1$d matches found</string>
     <string name="results_audio_chip">Audio / Audios (%1$d)</string>
     <string name="results_video_chip">Videos (%1$d)</string>
@@ -648,7 +649,6 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="widget_playing_nexora">Playing in Nexora</string>
     <string name="widget_tap_open">Tap to open the app</string>
     <string name="eq_band">Band</string>
-
     <string name="nav_online">オンライン</string>
     <string name="online_restoring_session">オンラインセッションを復元中…</string>
     <string name="online_auth_title">Nexora Online</string>
@@ -666,8 +666,8 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_tab_search">検索</string>
     <string name="online_tab_account">プロフィール</string>
     <string name="online_tab_upload">アップロード</string>
-    <string name="online_home_title">オンラインライブラリ</string>
-    <string name="online_home_subtitle">Nexora Player API からの有効で承認済みの曲です。</string>
+    <string name="online_home_title">Nexoraオンライン</string>
+    <string name="online_home_subtitle">こんにちは、%1$s。Nexoraサーバーの承認済み音楽を見つけましょう。</string>
     <string name="online_empty_home">サーバーからオンライン曲が返されませんでした。</string>
     <string name="online_search_hint">タイトル、アーティスト、アルバム、ジャンルを検索</string>
     <string name="online_search_action">検索</string>
@@ -738,4 +738,19 @@ Try Nexora Player if you want a complete, lightweight and stylish player.
     <string name="online_email_password_note">メールログイン用のパスワードを変更します。</string>
     <string name="online_error_google_callback">Google ログインを完了できませんでした。</string>
     <string name="online_error_google_login_unavailable">現在 Google ログインは利用できません。</string>
+    <string name="online_home_popular_title">人気の曲</string>
+    <string name="online_home_recommendations_title">おすすめ</string>
+    <string name="online_trending_searches">急上昇検索</string>
+    <string name="online_favorites_title">お気に入り</string>
+    <string name="online_empty_favorites">オンラインのお気に入りがここに表示されます。</string>
+    <string name="online_empty_section">まだコンテンツがありません。</string>
+    <string name="online_playlists_title">プレイリスト</string>
+    <string name="online_empty_playlists">オンラインプレイリストがここに表示されます。</string>
+    <string name="online_playlist_private">非公開プレイリスト</string>
+    <string name="online_profile_bio_label">自己紹介</string>
+    <string name="online_current_password">現在のパスワード</string>
+    <string name="online_current_password_required">現在のパスワードを入力してください。</string>
+    <string name="online_password_complexity">小文字、大文字、数字、記号を含めてください。6文字以上。</string>
+    <string name="online_set_password">パスワードを保存</string>
+    <string name="online_health_ok">サーバーはオンラインです</string>
 </resources>

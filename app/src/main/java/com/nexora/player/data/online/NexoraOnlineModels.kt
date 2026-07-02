@@ -15,6 +15,23 @@ data class OnlineSongsResponse(
     val offset: Int
 )
 
+data class OnlineCatalogHome(
+    val popular: List<OnlineSongDto> = emptyList(),
+    val recentlyAdded: List<OnlineSongDto> = emptyList(),
+    val trendingSearches: List<String> = emptyList(),
+    val recommendations: List<OnlineSongDto> = emptyList()
+) {
+    val combinedSongs: List<OnlineSongDto>
+        get() = buildList {
+            val seen = linkedSetOf<String>()
+            listOf(popular, recentlyAdded, recommendations).forEach { section ->
+                section.forEach { song ->
+                    if (song.id.isNotBlank() && seen.add(song.id)) add(song)
+                }
+            }
+        }
+}
+
 data class OnlineSongDto(
     val id: String,
     val title: String,
@@ -28,7 +45,31 @@ data class OnlineSongDto(
     val lyrics: String?,
     val source: String?,
     val canDownload: Boolean,
-    val createdAt: String?
+    val createdAt: String?,
+    val favorited: Boolean = false
+)
+
+data class OnlinePlaylistDto(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val isPublic: Boolean,
+    val isFavorites: Boolean = false,
+    val songs: List<OnlineSongDto> = emptyList()
+)
+
+data class OnlineShareInfo(
+    val shareUrl: String?,
+    val deepLink: String?,
+    val androidIntentUrl: String?,
+    val downloadUrl: String?
+)
+
+data class OnlineProfileUpdateRequest(
+    val username: String,
+    val displayName: String,
+    val bio: String,
+    val phoneNumber: String = ""
 )
 
 data class OnlineLyricsDto(
@@ -47,7 +88,10 @@ data class OnlineUserSession(
     val displayName: String? = null,
     val username: String? = null,
     val avatarUrl: String? = null,
-    val provider: String? = null
+    val provider: String? = null,
+    val bio: String? = null,
+    val phoneNumber: String? = null,
+    val hasPassword: Boolean? = null
 ) {
     val isExpired: Boolean
         get() = System.currentTimeMillis() / 1000L >= expiresAtEpochSeconds - 60L
@@ -75,11 +119,16 @@ data class OnlineUiState(
     val restoringSession: Boolean = true,
     val authLoading: Boolean = false,
     val authError: String? = null,
+    val home: OnlineCatalogHome = OnlineCatalogHome(),
     val songs: List<OnlineSongDto> = emptyList(),
     val searchResults: List<OnlineSongDto> = emptyList(),
+    val favorites: List<OnlineSongDto> = emptyList(),
+    val playlists: List<OnlinePlaylistDto> = emptyList(),
     val onlineQuery: String = "",
     val loadingSongs: Boolean = false,
     val searching: Boolean = false,
+    val loadingFavorites: Boolean = false,
+    val loadingPlaylists: Boolean = false,
     val songsError: String? = null,
     val searchError: String? = null,
     val selectedUploadIds: Set<Long> = emptySet(),
@@ -89,7 +138,8 @@ data class OnlineUiState(
     val profileError: String? = null,
     val passwordSaving: Boolean = false,
     val passwordMessage: String? = null,
-    val passwordError: String? = null
+    val passwordError: String? = null,
+    val healthMessage: String? = null
 ) {
     val loggedIn: Boolean get() = session != null
 }
@@ -114,10 +164,11 @@ fun OnlineSongDto.toMediaEntry(apiBaseUrl: String): MediaEntry? {
 }
 
 fun OnlineSongDto.resolvedAudioUrl(apiBaseUrl: String): String {
+    val root = apiBaseUrl.trimEnd('/').removeSuffix("/api/v1")
     val explicit = audioUrl.orEmpty().trim()
     if (explicit.startsWith("http://") || explicit.startsWith("https://")) return explicit
-    if (explicit.startsWith("/")) return apiBaseUrl.trimEnd('/') + explicit
-    return "${apiBaseUrl.trimEnd('/')}/api/v1/songs/$id/stream"
+    if (explicit.startsWith("/")) return root + explicit
+    return "$root/api/v1/songs/$id/stream"
 }
 
 fun stableOnlineLongId(value: String): Long {
